@@ -41,6 +41,9 @@ class TgBot(val LOGGER: Logger) {
     private var currentOffset: Long = -1
     private var me: User? = null
 
+    // Список урчаний для команды /meow (перенесено сюда, чтобы CommandHandler мог его прочесть через this.meow)
+    val meow = arrayOf("meow~", "mew!", "purr...")
+
     private suspend fun initialize() {
         try {
             me = api.getMe().result!!
@@ -117,6 +120,7 @@ class TgBot(val LOGGER: Logger) {
             update,
             update.message,
             update.message.chat,
+            bot = this // Явно передаем инстанс бота в контекст
         )
         update.message.let {
             if (it.text?.startsWith("/") == true) {
@@ -126,9 +130,9 @@ class TgBot(val LOGGER: Logger) {
                     if (cmds[1] != me!!.username) return
                     cmds[0].substring(1)
                 } else args[0].substring(1)
-                commandMap[cmd]?.run {
-                    this(ctx.copy(commandArgs = args))
-                }
+                
+                // ИСПРАВЛЕНО: Безопасный вызов функциональной ссылки из мапы через .invoke()
+                commandMap[cmd]?.invoke(this, ctx.copy(commandArgs = args))
                 return
             }
             onMessageHandler(ctx)
@@ -149,10 +153,10 @@ class TgBot(val LOGGER: Logger) {
         val text = LiteralText("")
         
         repeat(msgs.size - 1) { i ->
-            text.append(msgs[i])
+            text.append(LiteralText(msgs[i]))
             text.append(msg.toText(Bridge.CONFIG.messageTrim))
         }
-        text.append(msgs.last())
+        text.append(LiteralText(msgs.last()))
 
         Bridge.sendMessage(text)
     }

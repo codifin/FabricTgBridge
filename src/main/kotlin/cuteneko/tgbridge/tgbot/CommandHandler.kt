@@ -8,30 +8,30 @@ import cuteneko.tgbridge.toPlainString
 import net.minecraft.server.command.CommandOutput
 import net.minecraft.text.LiteralText
 import net.minecraft.text.Text
-import net.minecraft.util.Util
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class MyOutput(private val ctx: HandlerContext) : CommandOutput {
-    // В 1.18.2 метод принимает Text и UUID
+class MyOutput(private val bot: TgBot) : CommandOutput {
+    // В 1.18.2 интерфейс требует именно этот метод
     override fun sendSystemMessage(message: Text, sender: UUID) {
         val txt = message.toPlainString(false)
         if (txt.isBlank()) return
-        ctx.bot.LOGGER.info(txt)
+        bot.LOGGER.info(txt)
         
-        // Отправка обратно в Telegram
         GlobalScope.launch {
-            ctx.bot.sendMessageToTelegram(txt)
+            bot.sendMessageToTelegram(txt)
         }
     }
 
     override fun shouldReceiveFeedback(): Boolean = true
     override fun shouldTrackOutput(): Boolean = true
-    override fun shouldBroadcastToOps(): Boolean = false
+    // Метод 1.18.2 вместо shouldBroadcastToOps
+    override fun shouldBroadcastConsoleToOps(): Boolean = false
 }
 
-val TgBot.commandMap: Map<String?, CmdHandler>
+// Убрали явное упоминание несуществующего CmdHandler, Котлин сам выведет типы
+val TgBot.commandMap
     get() = mapOf(
         "chat_id" to ::chatIdHandler,
         "list" to ::listHandler,
@@ -57,7 +57,8 @@ suspend fun TgBot.listHandler(ctx: HandlerContext) {
 
 suspend fun TgBot.meowHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    this.sendMessageToTelegram(meow.shuffled()[0], reply = msg.messageId)
+    // Массив meow берется напрямую у инстанса TgBot (через ключевое слово this)
+    this.sendMessageToTelegram(this.meow.shuffled()[0], reply = msg.messageId)
 }
 
 suspend fun TgBot.commandHandler(ctx: HandlerContext) {
@@ -71,17 +72,16 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     
     val cmdMgr = Bridge.SERVER.commandManager
     
-    // В 1.18.2 выводим лог выполнения команды через sendSystemMessage консоли
-    Bridge.SERVER.commandSource.sendSystemMessage(
+    // В 1.18.2 выводим лог через sendFeedback у источника команд
+    Bridge.SERVER.commandSource.sendFeedback(
         LiteralText("Executing command: /$cmd"), 
-        Util.NIL_UUID
+        false
     )
     
-    // Создаем вывод, привязанный к текущему контексту сообщения Telegram
-    val myOutput = MyOutput(ctx)
+    val myOutput = MyOutput(this)
     val source = Bridge.SERVER.commandSource.withOutput(myOutput)
     
-    // В 1.18.2 метод ожидает чистую команду (без '/' в начале)
     cmd = cmd.removePrefix("/")
-    cmdMgr.executeWithPrefix(source, cmd)
+    // В 1.18.2 метод менеджера команд называется просто execute
+    cmdMgr.execute(source, cmd)
 }

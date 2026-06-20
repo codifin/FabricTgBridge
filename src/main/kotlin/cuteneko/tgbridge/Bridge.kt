@@ -49,22 +49,23 @@ class Bridge : ModInitializer {
                 }
                 .executes {
                     if(RELOADING) {
-                        it.source.sendSystemMessage(LiteralText("A reload is already in progress!").formatted(Formatting.RED), Util.NIL_UUID)
+                        // В 1.18.2 используется sendFeedback(text, broadcastToOps)
+                        it.source.sendFeedback(LiteralText("A reload is already in progress!").formatted(Formatting.RED), false)
                         return@executes 1
                     }
                     RELOADING = true
-                    it.source.sendSystemMessage(LiteralText("Reloading!"), Util.NIL_UUID)
+                    it.source.sendFeedback(LiteralText("Reloading!"), false)
                     CONFIG = ConfigLoader.load()
                     GlobalScope.launch {
                         try {
                             BOT.stop()
                             BOT = TgBot(LOGGER)
                             BOT.startPolling()
-                            it.source.sendSystemMessage(LiteralText("Reloaded!"), Util.NIL_UUID)
+                            it.source.sendFeedback(LiteralText("Reloaded!"), false)
                         }
                         catch (e: Exception) {
-                            it.source.sendSystemMessage(LiteralText("Error occurred!").formatted(Formatting.RED), Util.NIL_UUID)
-                            e.message?.let { msg -> it.source.sendSystemMessage(LiteralText(msg), Util.NIL_UUID) }
+                            it.source.sendFeedback(LiteralText("Error occurred!").formatted(Formatting.RED), false)
+                            e.message?.let { msg -> it.source.sendFeedback(LiteralText(msg), false) }
                         }
                         finally {
                             RELOADING = false
@@ -85,14 +86,6 @@ class Bridge : ModInitializer {
                 if(CONFIG.sendServerStopping)  BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
             }
         }
-        
-        // ПРИМЕЧАНИЕ: Поскольку ServerMessageEvents отсутствует в Fabric API 1.18.2, 
-        // перехват сообщений должен быть реализован через Mixin (обычно в пакете mixin).
-        // Эти заглушки временно закомментированы, чтобы проект скомпилировался.
-        /*
-        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ -> ... }
-        ServerMessageEvents.GAME_MESSAGE.register { message -> ... }
-        */
     }
 
     companion object {
