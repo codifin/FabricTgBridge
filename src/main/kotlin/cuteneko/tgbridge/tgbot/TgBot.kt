@@ -88,7 +88,6 @@ class TgBot(val LOGGER: Logger) {
                     offset = currentOffset,
                     timeout = config.pollTimeout,
                 )
-                // ИСПРАВЛЕНО: Избавились от .let в пользу обычного if, чтобы убрать ошибку экспериментального break в лямбдах
                 val updates = response.result
                 if (updates != null && updates.isNotEmpty()) {
                     for (update in updates) {
@@ -163,21 +162,17 @@ class TgBot(val LOGGER: Logger) {
         }
     }
 
-suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
+    suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
         withContext(Dispatchers.IO) {
             val formatted = username?.let {
                 String.format(config.telegramFormat, username, text)
             } ?: text
             
             try {
-                val response = if (config.useHtmlFormat) {
-                    api.sendMessage(config.chatId, formatted, reply)
+                if (config.useHtmlFormat) {
+                    sendHtmlMessage(formatted, reply)
                 } else {
-                    api.sendMessageWithoutParse(config.chatId, formatted, reply)
-                }
-
-                if (!response.ok) {
-                    LOGGER.error(response.description)
+                    sendPlainMessage(formatted, reply)
                 }
             } catch (e: HttpException) {
                 e.response()?.errorBody()?.string()?.let {
@@ -187,6 +182,20 @@ suspend fun sendMessageToTelegram(text: String, username: String? = null, reply:
             } catch (e: Exception) {
                 LOGGER.error(e.message)
             }
+        }
+    }
+
+    private suspend fun sendHtmlMessage(formatted: String, reply: Long?) {
+        val response = api.sendMessage(config.chatId, formatted, reply)
+        if (!response.ok) {
+            LOGGER.error(response.description)
+        }
+    }
+
+    private suspend fun sendPlainMessage(formatted: String, reply: Long?) {
+        val response = api.sendMessageWithoutParse(config.chatId, formatted, reply)
+        if (!response.ok) {
+            LOGGER.error(response.description)
         }
     }
 }
