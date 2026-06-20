@@ -28,7 +28,8 @@ class TgBot(val LOGGER: Logger) {
         .build()
         
     internal val api = Retrofit.Builder()
-        .baseUrl("https://damp-snowflake-7378.codifin2.workers.dev/bot${config.botToken}/")
+        // Теперь адрес будет гибко браться из config.json:
+        .baseUrl("https://${config.telegramAPI}/bot${config.botToken}/")
         .client(client)
         .addConverterFactory(GsonConverterFactory.create())
         .build()

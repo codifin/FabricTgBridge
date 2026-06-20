@@ -22,19 +22,22 @@ configurations {
 }
 
 dependencies {
+    // Твои базовые зависимости (minecraft, yarn, fabric-loader...)
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-    // Тот самый Fabric API, на котором падало ремапинье
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    
-    // Подключение Kotlin для Fabric
     modImplementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
 
+    // Telegram Bot dependencies — компилируем и ЗАШИВАЕМ внутрь мода:
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    include 'com.squareup.retrofit2:retrofit:2.9.0'
+
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    include 'com.squareup.retrofit2:converter-gson:2.9.0'
+
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    include 'com.squareup.okhttp3:okhttp:4.12.0'
 }
 
 processResources {
@@ -68,7 +71,7 @@ shadowJar {
 
 remapJar {
     dependsOn shadowJar
-    inputFile.set(shadowJar.archiveFile)
+    inputFile = shadowJar.archiveFile
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
