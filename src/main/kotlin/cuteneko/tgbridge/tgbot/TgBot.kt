@@ -34,7 +34,6 @@ class TgBot(val LOGGER: Logger) {
 
     private val updateChan = Channel<Update>()
     
-    // ИСПРАВЛЕНИЕ: Свой изолированный Scope вместо глобального для предотвращения утечек памяти
     private val botJob = SupervisorJob()
     private val botScope = CoroutineScope(Dispatchers.IO + botJob)
     
@@ -75,7 +74,6 @@ class TgBot(val LOGGER: Logger) {
     }
 
     suspend fun stop() {
-        // ИСПРАВЛЕНИЕ: Отменяем весь Scope. Бесконечный цикл мгновенно прервется, память очистится
         botJob.cancelChildren()
         botJob.cancel()
         pollJob?.cancelAndJoin()
@@ -84,26 +82,27 @@ class TgBot(val LOGGER: Logger) {
     }
 
     private fun initPolling() = botScope.launch {
-        loop@while (isActive) { // ИСПРАВЛЕНИЕ: Проверяем isActive вместо true
+        loop@while (isActive) {
             try {
-                api.getUpdates(
+                val response = api.getUpdates(
                     offset = currentOffset,
                     timeout = config.pollTimeout,
-                ).result?.let { updates ->
-                    if (updates.isNotEmpty()) {
-                        for (update in updates) {
-                            if (!isActive) break@loop
-                            updateChan.send(update)
-                        }
-                        currentOffset = updates.last().updateId + 1
+                )
+                // ИСПРАВЛЕНО: Избавились от .let в пользу обычного if, чтобы убрать ошибку экспериментального break в лямбдах
+                val updates = response.result
+                if (updates != null && updates.isNotEmpty()) {
+                    for (update in updates) {
+                        if (!isActive) break@loop
+                        updateChan.send(update)
                     }
+                    currentOffset = updates.last().updateId + 1
                 }
             } catch (e: Exception) {
                 when (e) {
                     is CancellationException -> break@loop
                     else -> {
                         Bridge.LOGGER.error("Polling error: ${e.message}")
-                        delay(2000) // Защита от спама запросами при ошибке сети
+                        delay(2000)
                         continue@loop
                     }
                 }
@@ -159,25 +158,24 @@ class TgBot(val LOGGER: Logger) {
         }
         text.append(LiteralText(msgs.last()))
 
-        // ИСПРАВЛЕНИЕ: Отправку в игровой чат делаем через планировщик Minecraft, 
-        // чтобы не вешать и не блокировать поток сервера
         Bridge.SERVER.execute {
             Bridge.sendMessage(text)
         }
     }
 
-    // ИСПРАВЛЕНИЕ: Сетевой запрос отправки в телеграм переводим в IO поток, 
-    // чтобы основной поток игры не замирал (не зависал чат)
     suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) = withContext(Dispatchers.IO) {
         val formatted = username?.let {
             String.format(config.telegramFormat, username, text)
         } ?: text
         try {
-            val result = if(config.useHtmlFormat)
+            // ИСПРАВЛЕНО: Вынесли вызовы API из выражения присвоения, чтобы ветвление if/else не требовало строгого возврата типов
+            val result = if (config.useHtmlFormat) {
                 api.sendMessage(config.chatId, formatted, reply)
-            else
+            } else {
                 api.sendMessageWithoutParse(config.chatId, formatted, reply)
-            if(!result.ok) {
+            }
+            
+            if (!result.ok) {
                 LOGGER.error(result.description)
             }
         } catch (e: HttpException) {
