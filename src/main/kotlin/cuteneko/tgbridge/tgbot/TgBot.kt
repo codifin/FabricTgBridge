@@ -163,23 +163,21 @@ class TgBot(val LOGGER: Logger) {
         }
     }
 
-    suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
+suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
         withContext(Dispatchers.IO) {
             val formatted = username?.let {
                 String.format(config.telegramFormat, username, text)
             } ?: text
+            
             try {
-                // Вызываем API обычными командами, ничего не возвращая наружу
-                if (config.useHtmlFormat) {
-                    val result = api.sendMessage(config.chatId, formatted, reply)
-                    if (!result.ok) {
-                        LOGGER.error(result.description)
-                    }
+                val response = if (config.useHtmlFormat) {
+                    api.sendMessage(config.chatId, formatted, reply)
                 } else {
-                    val result = api.sendMessageWithoutParse(config.chatId, formatted, reply)
-                    if (!result.ok) {
-                        LOGGER.error(result.description)
-                    }
+                    api.sendMessageWithoutParse(config.chatId, formatted, reply)
+                }
+
+                if (!response.ok) {
+                    LOGGER.error(response.description)
                 }
             } catch (e: HttpException) {
                 e.response()?.errorBody()?.string()?.let {
