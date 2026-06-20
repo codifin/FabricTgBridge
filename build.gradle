@@ -1,6 +1,6 @@
 plugins {
-    id 'fabric-loom' version '1.2-SNAPSHOT'
-    id 'org.jetbrains.kotlin.jvm' version '1.9.22' // Обнови версию здесь
+    id 'fabric-loom' version '1.7-SNAPSHOT' // Обновлено с 1.2-SNAPSHOT
+    id 'org.jetbrains.kotlin.jvm' version '1.9.22'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
@@ -26,15 +26,11 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // Fabric API и Kotlin Adapter для 1.18.2
+    // Тот самый Fabric API, на котором падало ремапинье
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    
+    // Подключение Kotlin для Fabric
     modImplementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
-
-    // Зависимости, которые пакуем внутрь мода через Shadow
-    shadow('com.squareup.retrofit2:retrofit:2.9.0')
-    shadow('com.squareup.retrofit2:converter-gson:2.9.0')
-    // Gson в майнкрафте уже есть свой, но если нужна именно эта версия, оставляем:
-    shadow('com.google.code.gson:gson:2.10.1') 
 }
 
 processResources {
