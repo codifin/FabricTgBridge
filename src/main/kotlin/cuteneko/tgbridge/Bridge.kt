@@ -18,7 +18,6 @@ import java.io.FileNotFoundException
 
 class Bridge : ModInitializer {
     
-    // Создаем Scope для главного класса мода
     private val bridgeJob = SupervisorJob()
     private val bridgeScope = CoroutineScope(Dispatchers.Default + bridgeJob)
 
@@ -28,14 +27,14 @@ class Bridge : ModInitializer {
         CONFIG = ConfigLoader.load()
         ConfigLoader.save(CONFIG)
 
-        if(CONFIG.botToken == "YOUR BOT TOKEN HERE") {
+        if (CONFIG.botToken == "YOUR BOT TOKEN HERE") {
             LOGGER.info("Please edit config file!")
             return
         }
 
         try {
             LANG = ConfigLoader.getLang()
-        } catch (e:FileNotFoundException) {
+        } catch (e: FileNotFoundException) {
             LOGGER.error("lang.json not found! Read the document for more info")
             return
         }
@@ -47,7 +46,7 @@ class Bridge : ModInitializer {
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_reload")
                 .requires { it.hasPermissionLevel(4) }
                 .executes {
-                    if(RELOADING) {
+                    if (RELOADING) {
                         it.source.sendFeedback(LiteralText("A reload is already in progress!").formatted(Formatting.RED), false)
                         return@executes 1
                     }
@@ -61,12 +60,10 @@ class Bridge : ModInitializer {
                             BOT = TgBot(LOGGER)
                             BOT.startPolling()
                             it.source.sendFeedback(LiteralText("Reloaded!"), false)
-                        }
-                        catch (e: Exception) {
+                        } catch (e: Exception) {
                             it.source.sendFeedback(LiteralText("Error occurred!").formatted(Formatting.RED), false)
                             e.message?.let { msg -> it.source.sendFeedback(LiteralText(msg), false) }
-                        }
-                        finally {
+                        } finally {
                             RELOADING = false
                         }
                     }
@@ -76,17 +73,24 @@ class Bridge : ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTED.register {
             SERVER = it
-            if(CONFIG.sendServerStarted) {
+            if (CONFIG.sendServerStarted) {
                 bridgeScope.launch { BOT.sendMessageToTelegram(CONFIG.serverStartedMessage) }
             }
         }
 
         ServerLifecycleEvents.SERVER_STOPPING.register {
-            // Мгновенно тушим все фоновые процессы мода при остановке сервера
-            runBlocking {
+            // ИСПРАВЛЕНО: Полностью убран runBlocking. Завершаем работу асинхронно.
+            // Используем жесткий таймаут (3 секунды) на сетевую отправку, чтобы сервер не вис при выключении.
+            bridgeScope.launch {
                 try {
-                    if(CONFIG.sendServerStopping) BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
+                    withTimeoutOrNull(3000) {
+                        if (CONFIG.sendServerStopping) {
+                            BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
+                        }
+                    }
                     BOT.stop()
+                } catch (e: Exception) {
+                    LOGGER.error("Error while stopping bot: ${e.message}")
                 } finally {
                     bridgeJob.cancelChildren()
                     bridgeJob.cancel()
@@ -108,7 +112,9 @@ class Bridge : ModInitializer {
         
         fun sendMessage(text: Text?) {
             if (text == null) return
-            // Убеждаемся, что отправка идет строго в основном потоке игры
+            // ОПТИМИЗАЦИЯ: Безопасная проверка инициализации lateinit, чтобы избежать краша
+            if (!::SERVER.isInitialized) return
+
             SERVER.execute {
                 SERVER.playerManager.playerList.forEach {
                     it.sendSystemMessage(text, Util.NIL_UUID)

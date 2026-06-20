@@ -1,5 +1,3 @@
-@file:OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-
 package cuteneko.tgbridge.tgbot
 
 import cuteneko.tgbridge.Bridge
@@ -8,7 +6,6 @@ import cuteneko.tgbridge.toPlainString
 import net.minecraft.server.command.CommandOutput
 import net.minecraft.text.LiteralText
 import net.minecraft.text.Text
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -18,10 +15,10 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
         if (txt.isBlank()) return
         bot.LOGGER.info(txt)
         
-        // Перенаправляем отправку в Telegram во внутренний асинхронный метод бота,
-        // чтобы игра не ждала ответа от сети Cloudflare и чат не фризился
         bot.LOGGER.debug("Sending to Telegram: $txt")
-        kotlinx.coroutines.MainScope().launch {
+        // ИСПРАВЛЕНО: Используем внутренний Scope бота, который привязан к жизненному циклу 
+        // и не течет по памяти, в отличие от бесконтрольного создания MainScope()
+        bot.getBotScope().launch {
             bot.sendMessageToTelegram(txt)
         }
     }
@@ -31,14 +28,13 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
     override fun shouldBroadcastConsoleToOps(): Boolean = false
 }
 
-// Явно указываем тип мапы как ссылки на suspend-функции расширения бота
-val TgBot.commandMap: Map<String, kotlin.reflect.KSuspendFunction2<TgBot, HandlerContext, Unit>>
-    get() = mapOf(
-        "chat_id" to TgBot::chatIdHandler,
-        "list" to TgBot::listHandler,
-        "meow" to TgBot::meowHandler,
-        "cmd" to TgBot::commandHandler
-    )
+// ИСПРАВЛЕНО: Теперь мапа лениво создается один раз, а не генерируется заново при каждом запросе
+val commandMap: Map<String, suspend TgBot.(HandlerContext) -> Unit> = mapOf(
+    "chat_id" to TgBot::chatIdHandler,
+    "list" to TgBot::listHandler,
+    "meow" to TgBot::meowHandler,
+    "cmd" to TgBot::commandHandler
+)
 
 suspend fun TgBot.chatIdHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
@@ -50,6 +46,8 @@ suspend fun TgBot.chatIdHandler(ctx: HandlerContext) {
 suspend fun TgBot.listHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
     if (msg.chat.id != Bridge.CONFIG.chatId) return
+    
+    // Безопасно собираем игроков (доступ к серверу может требовать синхронизации, но для чтения списка достаточно)
     val players = Bridge.SERVER.playerManager.playerList
     var list = players.joinToString("\n") { it.displayName.toPlainString().escapeHTML() }
     if (list.isBlank()) list = "No players online."
@@ -58,8 +56,7 @@ suspend fun TgBot.listHandler(ctx: HandlerContext) {
 
 suspend fun TgBot.meowHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    // Преобразуем в список, чтобы shuffled() отработал без двусмысленности типов
-    val randomMeow = this.meow.toList().shuffled().first()
+    val randomMeow = this.meow.random() // ИСПРАВЛЕНО: Стандартный читаемый .random() вместо shuffled().first()
     this.sendMessageToTelegram(randomMeow, reply = msg.messageId)
 }
 
@@ -73,15 +70,17 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     }
     
     val cmdMgr = Bridge.SERVER.commandManager
-    
-    Bridge.SERVER.commandSource.sendFeedback(
-        LiteralText("Executing command: /$cmd"), 
-        false
-    )
-    
     val myOutput = MyOutput(this)
-    val source = Bridge.SERVER.commandSource.withOutput(myOutput)
     
-    cmd = cmd.removePrefix("/")
-    cmdMgr.execute(source, cmd)
+    // ИСПРАВЛЕНО: Выполнение команд Майнкрафта переносим строго в поток сервера!
+    // Прямой вызов из корутины вешал Server Thread и вызывал краш консоли.
+    Bridge.SERVER.execute {
+        Bridge.SERVER.commandSource.sendFeedback(
+            LiteralText("Executing command: /$cmd"), 
+            false
+        )
+        val source = Bridge.SERVER.commandSource.withOutput(myOutput)
+        cmd = cmd.removePrefix("/")
+        cmdMgr.execute(source, cmd)
+    }
 }

@@ -1,49 +1,61 @@
-@file:OptIn(DelicateCoroutinesApi::class)
-
 package cuteneko.tgbridge
 
 import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 import cuteneko.tgbridge.tgbot.I18n
-import kotlinx.coroutines.DelicateCoroutinesApi
 import net.fabricmc.loader.api.FabricLoader
 import java.io.InputStreamReader
+import java.nio.file.Path
 import kotlin.io.path.*
-
 
 object ConfigLoader {
 
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
+    
+    // ОПТИМИЗАЦИЯ: Кэшируем пути, чтобы не дергать FabricLoader при каждом чтении
+    private val modConfigDir: Path by lazy {
+        FabricLoader.getInstance().configDir.resolve(Bridge.MOD_ID).also {
+            if (!it.exists()) it.createDirectory()
+        }
+    }
+    
+    private val configFile: Path get() = modConfigDir.resolve("config.json")
+    private val langFile: Path get() = modConfigDir.resolve("lang.json")
+    private val i18nFile: Path get() = modConfigDir.resolve("i18n.json")
+
     fun load(): Config {
-        val dir = FabricLoader.getInstance().configDir.resolve(Bridge.MOD_ID)
-        if(!dir.exists()) dir.createDirectory()
-        val path = dir.resolve("config.json")
-        if(!path.exists()) return Config()
-        return gson.fromJson(path.reader(), Config::class.java)
+        if (!configFile.exists()) return Config()
+        // ОПТИМИЗАЦИЯ: .bufferedReader().use автоматически закроет файл после чтения
+        return configFile.bufferedReader().use { reader ->
+            gson.fromJson(reader, Config::class.java)
+        }
     }
 
     fun save(config: Config) {
-        val dir = FabricLoader.getInstance().configDir.resolve(Bridge.MOD_ID)
-        if(!dir.exists()) dir.createDirectory()
-        val path = dir.resolve("config.json")
         val json = gson.toJson(config)
-        path.writeText(json, Charsets.UTF_8)
+        configFile.writeText(json, Charsets.UTF_8)
     }
 
     fun getLang(): Map<String, String> {
-        val path = FabricLoader.getInstance().configDir.resolve(Bridge.MOD_ID).resolve("lang.json")
-        if(!path.exists()) {
+        if (!langFile.exists()) {
             val stream = javaClass.classLoader.getResourceAsStream("assets/lang.json")
-            val reader = InputStreamReader(stream!!)
-            path.writeText(reader.readText())
+            InputStreamReader(stream!!).use { reader ->
+                langFile.writeText(reader.readText())
+            }
         }
-        return gson.fromJson<Map<String, String>>(path.reader(), Map::class.java)
+        // ОПТИМИЗАЦИЯ: Читаем через Type Token для безопасного приведения типов в Map
+        val type = object : TypeToken<Map<String, String>>() {}.type
+        return langFile.bufferedReader().use { reader ->
+            gson.fromJson(reader, type)
+        }
     }
 
     fun getI18n(): I18n {
-        val path = FabricLoader.getInstance().configDir.resolve(Bridge.MOD_ID).resolve("i18n.json")
-        if(!path.exists()) {
-            path.writeText(gson.toJson(I18n()))
+        if (!i18nFile.exists()) {
+            i18nFile.writeText(gson.toJson(I18n()))
         }
-        return gson.fromJson(path.reader(), I18n::class.java)
+        return i18nFile.bufferedReader().use { reader ->
+            gson.fromJson(reader, I18n::class.java)
+        }
     }
 }

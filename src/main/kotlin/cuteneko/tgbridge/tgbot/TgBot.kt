@@ -32,7 +32,9 @@ class TgBot(val LOGGER: Logger) {
         .build()
         .create(TgApi::class.java)
 
-    private val updateChan = Channel<Update>()
+    // ОПТИМИЗАЦИЯ: Добавлен буфер для канала, чтобы быстрая отправка апдейтов 
+    // не блокировала поток поллинга при микрофризах игрового сервера
+    private val updateChan = Channel<Update>(Channel.BUFFERED)
     
     private val botJob = SupervisorJob()
     private val botScope = CoroutineScope(Dispatchers.IO + botJob)
@@ -44,6 +46,9 @@ class TgBot(val LOGGER: Logger) {
 
     val meow = arrayOf("meow~", "mew!", "purr...")
 
+    // ОПТИМИЗАЦИЯ: Предоставляем безопасный доступ к Scope для обработчика команд (CommandHandler.kt)
+    fun getBotScope(): CoroutineScope = botScope
+
     private suspend fun initialize() {
         try {
             me = api.getMe().result!!
@@ -53,7 +58,7 @@ class TgBot(val LOGGER: Logger) {
                 BotCommand("list", "Show online players."),
                 BotCommand("meow", "Meow!")
             )
-            api.setMyCommands(SetCommands(commands))
+            api.setMyCommands(SetCommands(commands.toList())) // Каст в List согласно нашей оптимизации DataStruct
             api.deleteWebhook(true)
         } catch (e: HttpException) {
             e.response()?.errorBody()?.string()?.let {
@@ -65,7 +70,7 @@ class TgBot(val LOGGER: Logger) {
     suspend fun startPolling() {
         try {
             initialize()
-        } catch(e:Exception) {
+        } catch(e: Exception) {
             Bridge.LOGGER.error("Failed to initialize! Check your network and configuration!")
             Bridge.LOGGER.error(e.message)
         }
@@ -101,7 +106,7 @@ class TgBot(val LOGGER: Logger) {
                     is CancellationException -> break@loop
                     else -> {
                         Bridge.LOGGER.error("Polling error: ${e.message}")
-                        delay(2000)
+                        delay(2000) // Защита от OOM при падении сети/прокси
                         continue@loop
                     }
                 }
@@ -188,14 +193,14 @@ class TgBot(val LOGGER: Logger) {
     private suspend fun sendHtmlMessage(formatted: String, reply: Long?) {
         val response = api.sendMessage(config.chatId, formatted, reply)
         if (!response.ok) {
-            LOGGER.error(response.description)
+            LOGGER.error(response.description ?: "Unknown API error")
         }
     }
 
     private suspend fun sendPlainMessage(formatted: String, reply: Long?) {
         val response = api.sendMessageWithoutParse(config.chatId, formatted, reply)
         if (!response.ok) {
-            LOGGER.error(response.description)
+            LOGGER.error(response.description ?: "Unknown API error")
         }
     }
 }

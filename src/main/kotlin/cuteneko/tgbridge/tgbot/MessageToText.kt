@@ -1,33 +1,38 @@
 package cuteneko.tgbridge.tgbot
 
+import cuteneko.tgbridge.Bridge
 import cuteneko.tgbridge.ConfigLoader
 import cuteneko.tgbridge.rawUserMention
 import cuteneko.tgbridge.toPlainString
 import net.minecraft.text.HoverEvent
 import net.minecraft.text.Style
 import net.minecraft.text.Text
-import net.minecraft.text.LiteralText // Добавлено для 1.18.2
+import net.minecraft.text.LiteralText
 import net.minecraft.util.Formatting
 
-val i18n = ConfigLoader.getI18n()
+// ОПТИМИЗАЦИЯ: Получаем актуальный i18n динамически, чтобы работал reload конфига
+private val i18n get() = ConfigLoader.getI18n()
 
 fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
-    // В 1.18.2 нет метода Text.empty(), вместо него создаем пустой LiteralText
     val text = LiteralText("") 
 
     replyToMessage?.let {
+        // ОПТИМИЗАЦИЯ: Защита от бесконечной рекурсии в HoverEvent.
+        // Вместо вызова тяжелого .toText() строим плоский текст реплая.
+        val replyRawText = it.text ?: it.caption ?: "[Media]"
+        val replyClean = if (replyRawText.length > 20) "${replyRawText.take(20)}..." else replyRawText
+
         text.append(
             LiteralText(
                 i18n.reply.format(
-                    it.from?.rawUserMention(),
-                    it.toText(10, false).toPlainString()
+                    it.from?.rawUserMention() ?: "User",
+                    replyClean
                 )
+            ).setStyle(
+                Style.EMPTY
+                    .withColor(Formatting.GOLD)
+                    .withHoverEvent(HoverEvent(HoverEvent.Action.SHOW_TEXT, LiteralText(replyRawText)))
             )
-                .setStyle(
-                    Style.EMPTY
-                        .withColor(Formatting.GOLD)
-                        .withHoverEvent(HoverEvent(HoverEvent.Action.SHOW_TEXT, it.toText()))
-                )
         )
     }
 
@@ -65,23 +70,20 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
     if (!photo.isNullOrEmpty()) {
         text.append(
             LiteralText(i18n.photo)
-                .setStyle(
-                    Style.EMPTY
-                        .withColor(Formatting.BLUE)
-                )
+                .setStyle(Style.EMPTY.withColor(Formatting.BLUE))
         )
     }
 
     sticker?.let {
         text.append(
-            LiteralText(i18n.sticker.format(it.emoji))
+            LiteralText(i18n.sticker.format(it.emoji ?: ""))
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.BLUE)
                         .withHoverEvent(
                             HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
-                                LiteralText(i18n.stickerFrom.format(it.setName))
+                                LiteralText(i18n.stickerFrom.format(it.setName ?: "unknown"))
                             )
                         )
                 )
@@ -91,45 +93,35 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
     document?.let {
         text.append(
             LiteralText(i18n.document.format(it.fileName))
-                .setStyle(
-                    Style.EMPTY.withColor(Formatting.BLUE)
-                )
+                .setStyle(Style.EMPTY.withColor(Formatting.BLUE))
         )
     }
 
     voice?.let {
         text.append(
             LiteralText(i18n.voice.format(it.duration))
-                .setStyle(
-                    Style.EMPTY.withColor(Formatting.BLUE)
-                )
+                .setStyle(Style.EMPTY.withColor(Formatting.BLUE))
         )
     }
 
     audio?.let {
         text.append(
             LiteralText(i18n.audio.format(it.duration))
-                .setStyle(
-                    Style.EMPTY.withColor(Formatting.BLUE)
-                )
+                .setStyle(Style.EMPTY.withColor(Formatting.BLUE))
         )
     }
 
     video?.let {
         text.append(
             LiteralText(i18n.video.format(it.duration))
-                .setStyle(
-                    Style.EMPTY.withColor(Formatting.BLUE)
-                )
+                .setStyle(Style.EMPTY.withColor(Formatting.BLUE))
         )
     }
 
     poll?.let {
         text.append(
             LiteralText(i18n.poll.format(it.question.trimMessage(trim, showMore).toPlainString(false)))
-                .setStyle(
-                    Style.EMPTY.withColor(Formatting.BLUE)
-                )
+                .setStyle(Style.EMPTY.withColor(Formatting.BLUE))
         )
     }
 
@@ -152,23 +144,24 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 }
 
 private fun String.trimMessage(size: Int, showMore: Boolean = true): Text {
-    val msg = replace("\n", " ")
+    // ОПТИМИЗАЦИЯ: Обычный чистый быстрый реплейс без аллокаций тяжелых паттернов регулярных выражений
+    val msg = this.replace('\n', ' ')
     val text = LiteralText("")
-    if(size == 0 || this.length <= size) {
+    
+    if (size == 0 || msg.length <= size) {
         text.append(msg)
         return text
     }
+    
     text.append("${msg.substring(0, size)}...")
-    if(showMore) {
+    if (showMore) {
         text.append(
             LiteralText(i18n.more)
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.GOLD)
                         .withHoverEvent(
-                            HoverEvent(
-                                HoverEvent.Action.SHOW_TEXT, LiteralText(this)
-                            )
+                            HoverEvent(HoverEvent.Action.SHOW_TEXT, LiteralText(this))
                         )
                 )
         )

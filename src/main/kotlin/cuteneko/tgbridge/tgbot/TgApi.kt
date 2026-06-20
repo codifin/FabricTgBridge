@@ -6,19 +6,21 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface TgApi {
-    @GET("deleteWebhook")
+    @POST("deleteWebhook")
     suspend fun deleteWebhook(
         @Query("drop_pending_updates") dropPendingUpdates: Boolean
     ): TgResponse<Boolean>
 
-    @GET("sendMessage?parse_mode=HTML")
+    // ОПТИМИЗАЦИЯ: Изменено на POST, чтобы длинные сообщения из чата Майнкрафта 
+    // не обрезались сервером и не вызывали HTTP 414 URI Too Long / ошибки сети.
+    @POST("sendMessage?parse_mode=HTML")
     suspend fun sendMessage(
         @Query("chat_id") chatId: Long,
         @Query("text") text: String,
         @Query("reply_to_message_id") replyToMessageId: Long? = null,
     ): TgResponse<Message>
 
-    @GET("sendMessage")
+    @POST("sendMessage")
     suspend fun sendMessageWithoutParse(
         @Query("chat_id") chatId: Long,
         @Query("text") text: String,

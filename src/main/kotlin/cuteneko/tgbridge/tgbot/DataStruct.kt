@@ -6,7 +6,7 @@ data class HandlerContext(
     val update: Update,
     val message: Message?,
     val chat: Chat?,
-    val commandArgs: List<String> = listOf(),
+    val commandArgs: List<String> = emptyList(), // Оптимизация: пустой синглтон вместо listOf()
 )
 
 data class TgResponse<T>(
@@ -48,7 +48,7 @@ data class Message(
     val chat: Chat,
     @Name("reply_to_message") val replyToMessage: Message? = null,
     val text: String? = null,
-    val photo: List<PhotoSize>? = emptyList(),
+    val photo: List<PhotoSize>? = null, // Оптимизация: null по умолчанию лучше, чем создание пустого списка при парсинге текста
     val sticker: Sticker? = null,
     val video: Media? = null,
     val voice: Media? = null,
@@ -79,8 +79,11 @@ data class Media(
     val duration: Int
 )
 
-data class BotCommand(val command: String, val description: String)
+data class BotCommand(
+    val command: String, 
+    val description: String
+)
 
-data class SetCommands(val commands: Array<BotCommand>)
-
-
+data class SetCommands(
+    val commands: List<BotCommand> // Оптимизация: List в Kotlin предпочтительнее и легче кастуется из коллекций, чем Array
+)
