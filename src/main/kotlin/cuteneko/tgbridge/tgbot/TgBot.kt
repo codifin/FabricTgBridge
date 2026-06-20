@@ -84,7 +84,10 @@ class TgBot(val LOGGER: Logger) {
                     timeout = config.pollTimeout,
                 ).result?.let { updates ->
                     if (updates.isNotEmpty()) {
-                        updates.forEach { updateChan.send(it) }
+                        // ИСПРАВЛЕНО: используем обычный цикл for вместо forEach, чтобы работал suspend-метод .send()
+                        for (update in updates) {
+                            updateChan.send(update)
+                        }
                         currentOffset = updates.last().updateId + 1
                     }
                 }
