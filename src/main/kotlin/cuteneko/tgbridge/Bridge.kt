@@ -8,13 +8,11 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import net.fabricmc.api.ModInitializer
-import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback // Изменено на v1 для 1.18.2
+import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
-import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
-import net.minecraft.network.message.MessageType // Добавлено для 1.18.2 чата
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.text.LiteralText // Изменено для 1.18.2
+import net.minecraft.text.LiteralText
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Util
@@ -44,7 +42,6 @@ class Bridge : ModInitializer {
         BOT = TgBot(LOGGER)
         GlobalScope.launch { BOT.startPolling() }
 
-        // В 1.18.2 используется CommandRegistrationCallback из v1 с двумя параметрами
         CommandRegistrationCallback.EVENT.register { dispatcher, _ ->
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_reload")
                 .requires {
@@ -52,22 +49,22 @@ class Bridge : ModInitializer {
                 }
                 .executes {
                     if(RELOADING) {
-                        it.source.sendMessage(LiteralText("A reload is already in progress!").formatted(Formatting.RED), Util.NIL_UUID)
+                        it.source.sendSystemMessage(LiteralText("A reload is already in progress!").formatted(Formatting.RED), Util.NIL_UUID)
                         return@executes 1
                     }
                     RELOADING = true
-                    it.source.sendMessage(LiteralText("Reloading!"), Util.NIL_UUID)
+                    it.source.sendSystemMessage(LiteralText("Reloading!"), Util.NIL_UUID)
                     CONFIG = ConfigLoader.load()
                     GlobalScope.launch {
                         try {
                             BOT.stop()
                             BOT = TgBot(LOGGER)
                             BOT.startPolling()
-                            it.source.sendMessage(LiteralText("Reloaded!"), Util.NIL_UUID)
+                            it.source.sendSystemMessage(LiteralText("Reloaded!"), Util.NIL_UUID)
                         }
                         catch (e: Exception) {
-                            it.source.sendMessage(LiteralText("Error occurred!").formatted(Formatting.RED), Util.NIL_UUID)
-                            e.message?.let { msg -> it.source.sendMessage(LiteralText(msg), Util.NIL_UUID) }
+                            it.source.sendSystemMessage(LiteralText("Error occurred!").formatted(Formatting.RED), Util.NIL_UUID)
+                            e.message?.let { msg -> it.source.sendSystemMessage(LiteralText(msg), Util.NIL_UUID) }
                         }
                         finally {
                             RELOADING = false
@@ -88,21 +85,14 @@ class Bridge : ModInitializer {
                 if(CONFIG.sendServerStopping)  BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
             }
         }
-
-        // В 1.18.2 CHAT_MESSAGE принимает Text, ServerPlayerEntity и UUID
-        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
-            if(!CONFIG.sendChatMessage) return@register
-            val senderName = sender.displayName.toPlainString()
-            val msg = message.toPlainString()
-            GlobalScope.launch { BOT.sendMessageToTelegram(msg.escapeHTML(), senderName.escapeHTML()) }
-        }
-
-        // В 1.18.2 GAME_MESSAGE принимает Text
-        ServerMessageEvents.GAME_MESSAGE.register { message ->
-            if(!CONFIG.sendGameMessage) return@register
-            val msg = message.toPlainString()
-            GlobalScope.launch { BOT.sendMessageToTelegram(msg) }
-        }
+        
+        // ПРИМЕЧАНИЕ: Поскольку ServerMessageEvents отсутствует в Fabric API 1.18.2, 
+        // перехват сообщений должен быть реализован через Mixin (обычно в пакете mixin).
+        // Эти заглушки временно закомментированы, чтобы проект скомпилировался.
+        /*
+        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ -> ... }
+        ServerMessageEvents.GAME_MESSAGE.register { message -> ... }
+        */
     }
 
     companion object {
@@ -119,11 +109,9 @@ class Bridge : ModInitializer {
         fun sendMessage(text: Text?) {
             if (text == null) return
             SERVER.playerManager.playerList.forEach {
-                // В 1.18.2 отправка сообщений игрокам требует тип сообщения и UUID
-                it.sendMessage(text, MessageType.CHAT, Util.NIL_UUID)
+                it.sendSystemMessage(text, Util.NIL_UUID)
             }
-            // Отправка в консоль сервера
-            SERVER.sendMessage(text, Util.NIL_UUID)
+            SERVER.sendSystemMessage(text, Util.NIL_UUID)
         }
     }
 }

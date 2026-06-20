@@ -4,9 +4,9 @@ package cuteneko.tgbridge
 
 import cuteneko.tgbridge.tgbot.User
 import kotlinx.coroutines.DelicateCoroutinesApi
-import net.minecraft.text.LiteralText // Изменено для 1.18.2
+import net.minecraft.text.LiteralText
 import net.minecraft.text.Text
-import net.minecraft.text.TranslatableText // Изменено для 1.18.2
+import net.minecraft.text.TranslatableText
 
 fun Text?.toPlainString(formatted: Boolean = true): String {
     if (this == null) {
@@ -14,12 +14,9 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
     }
     var result = ""
     
-    // В 1.18.2 вместо siblings используется children
-    if (children.size == 0) {
-        // В 1.18.2 проверяем сам объект Text, так как разделения на Content ещё нет
+    if (siblings.isEmpty()) {
         result = when (this) {
             is LiteralText -> {
-                // У LiteralText в 1.18.2 строка получается через метод rawString
                 this.rawString.escapeHTML()
             }
 
@@ -28,7 +25,6 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
                 val key = this.key
                 if (!lang.containsKey(key)) key
                 
-                // В 1.18.2 аргументы лежат в свойстве args
                 val args = this.args.map {
                     if (it is Text) it.toPlainString()
                     else it.toString()
@@ -38,13 +34,11 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
             }
 
             else -> {
-                // На всякий случай для других типов (например, KeybindText)
                 this.asString().escapeHTML()
             }
         }
     } else {
-        // Проходимся по дочерним элементам через children
-        children.forEach {
+        siblings.forEach {
             result += it.toPlainString()
         }
     }

@@ -1,55 +1,35 @@
-@file:OptIn(DelicateCoroutinesApi::class)
+@file:OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
 
 package cuteneko.tgbridge.tgbot
 
 import cuteneko.tgbridge.Bridge
 import cuteneko.tgbridge.escapeHTML
 import cuteneko.tgbridge.toPlainString
-import kotlinx.coroutines.DelicateCoroutinesApi
+import net.minecraft.server.command.CommandOutput
+import net.minecraft.text.LiteralText
+import net.minecraft.text.Text
+import net.minecraft.util.Util
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import net.minecraft.server.command.CommandOutput
-import net.minecraft.server.command.ServerCommandSource
-import net.minecraft.text.LiteralText // Изменено для 1.18.2
-import net.minecraft.text.Text
-import java.util.*
+import java.util.UUID
 
-typealias CmdHandler = suspend (HandlerContext) -> Unit
-
-private val meow = listOf("Meow!", "Nya!", "Meow~", "Nya~")
-
-private class MyOutput(val superSource: ServerCommandSource): CommandOutput {
-    var commandResult = ""
-    var commandTimer: Timer? = null
-
-    // В 1.18.2 интерфейс CommandOutput требует sendMessage(message: Text, senderUuid: UUID)
-    override fun sendMessage(message: Text, senderUuid: UUID) {
-        superSource.sendMessage(message, senderUuid)
-        commandResult += message.toPlainString() + "\n"
-        commandTimer?.cancel()
-        commandTimer = Timer()
-        commandTimer!!.schedule(object : TimerTask() {
-            override fun run() {
-                if(commandResult.isBlank()) return
-                GlobalScope.launch {
-                    try {
-                        Bridge.BOT.sendMessageToTelegram(commandResult)
-                    } finally {
-                        commandResult = ""
-                    }
-                }
-            }
-        }, 100)
+class MyOutput(private val ctx: HandlerContext) : CommandOutput {
+    // В 1.18.2 метод принимает Text и UUID
+    override fun sendSystemMessage(message: Text, sender: UUID) {
+        val txt = message.toPlainString(false)
+        if (txt.isBlank()) return
+        ctx.bot.LOGGER.info(txt)
+        
+        // Отправка обратно в Telegram
+        GlobalScope.launch {
+            ctx.bot.sendMessageToTelegram(txt)
+        }
     }
 
-    override fun shouldReceiveFeedback() = true
-
-    override fun shouldTrackOutput() = true
-
-    override fun shouldBroadcastConsoleToOps() = true
+    override fun shouldReceiveFeedback(): Boolean = true
+    override fun shouldTrackOutput(): Boolean = true
+    override fun shouldBroadcastToOps(): Boolean = false
 }
-
-private val myOutput = MyOutput(Bridge.SERVER.commandSource)
 
 val TgBot.commandMap: Map<String?, CmdHandler>
     get() = mapOf(
@@ -68,11 +48,11 @@ suspend fun TgBot.chatIdHandler(ctx: HandlerContext) {
 
 suspend fun TgBot.listHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    if(msg.chat.id != Bridge.CONFIG.chatId) return
+    if (msg.chat.id != Bridge.CONFIG.chatId) return
     val players = Bridge.SERVER.playerManager.playerList
     var list = players.joinToString("\n") { it.displayName.toPlainString().escapeHTML() }
-    if(list.isBlank()) list = "No players online." // TODO: i18n
-    this.sendMessageToTelegram(list, reply =  msg.messageId)
+    if (list.isBlank()) list = "No players online."
+    this.sendMessageToTelegram(list, reply = msg.messageId)
 }
 
 suspend fun TgBot.meowHandler(ctx: HandlerContext) {
@@ -82,20 +62,26 @@ suspend fun TgBot.meowHandler(ctx: HandlerContext) {
 
 suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    val cmd = ctx.commandArgs.subList(1, ctx.commandArgs.size).joinToString(" ")
-    if(!Bridge.CONFIG.admins.contains(msg.from?.username)) {
+    var cmd = ctx.commandArgs.subList(1, ctx.commandArgs.size).joinToString(" ")
+    
+    if (!Bridge.CONFIG.admins.contains(msg.from?.username)) {
         this.sendMessageToTelegram(Bridge.CONFIG.noPermission, reply = msg.messageId)
         return
     }
+    
     val cmdMgr = Bridge.SERVER.commandManager
     
-    // В 1.18.2 отправка сообщения требует UUID (используем Util.NIL_UUID или UUID.randomUUID())
-    // И заменяем Text.literal на LiteralText
-    Bridge.SERVER.commandSource.sendMessage(
+    // В 1.18.2 выводим лог выполнения команды через sendSystemMessage консоли
+    Bridge.SERVER.commandSource.sendSystemMessage(
         LiteralText("Executing command: /$cmd"), 
-        net.minecraft.util.Util.NIL_UUID
+        Util.NIL_UUID
     )
     
+    // Создаем вывод, привязанный к текущему контексту сообщения Telegram
+    val myOutput = MyOutput(ctx)
     val source = Bridge.SERVER.commandSource.withOutput(myOutput)
+    
+    // В 1.18.2 метод ожидает чистую команду (без '/' в начале)
+    cmd = cmd.removePrefix("/")
     cmdMgr.executeWithPrefix(source, cmd)
 }
