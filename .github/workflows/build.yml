@@ -8,17 +8,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'zulu'
+          
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
+        
+      # Запускаем полную сборку проекта вместо одиночного shadowJar
       - name: Run build with Gradle Wrapper
-        run: ./gradlew shadowJar
+        run: ./gradlew build
+        
+      # Публикуем готовый скомпилированный мод
       - name: Publish build
         uses: actions/upload-artifact@v3
         with:
           name: build
-          path: build/libs/*-all.jar
+          # Собираем только финальные remapped файлы (исключая промежуточные -shadow и -sources)
+          path: |
+            build/libs/*.jar
+            !build/libs/*-shadow.jar
+            !build/libs/*-sources.jar

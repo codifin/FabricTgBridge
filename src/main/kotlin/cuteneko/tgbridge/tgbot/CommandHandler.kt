@@ -10,20 +10,21 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import net.minecraft.server.command.CommandOutput
 import net.minecraft.server.command.ServerCommandSource
+import net.minecraft.text.LiteralText // Изменено для 1.18.2
 import net.minecraft.text.Text
 import java.util.*
-
 
 typealias CmdHandler = suspend (HandlerContext) -> Unit
 
 private val meow = listOf("Meow!", "Nya!", "Meow~", "Nya~")
 
-
 private class MyOutput(val superSource: ServerCommandSource): CommandOutput {
     var commandResult = ""
     var commandTimer: Timer? = null
-    override fun sendMessage(message: Text?) {
-        superSource.sendMessage(message);
+
+    // В 1.18.2 интерфейс CommandOutput требует sendMessage(message: Text, senderUuid: UUID)
+    override fun sendMessage(message: Text, senderUuid: UUID) {
+        superSource.sendMessage(message, senderUuid)
         commandResult += message.toPlainString() + "\n"
         commandTimer?.cancel()
         commandTimer = Timer()
@@ -39,7 +40,6 @@ private class MyOutput(val superSource: ServerCommandSource): CommandOutput {
                 }
             }
         }, 100)
-        //GlobalScope.launch { Bridge.BOT.api.sendMessage(Bridge.CONFIG.chatId, message.toPlainString()) }
     }
 
     override fun shouldReceiveFeedback() = true
@@ -47,7 +47,6 @@ private class MyOutput(val superSource: ServerCommandSource): CommandOutput {
     override fun shouldTrackOutput() = true
 
     override fun shouldBroadcastConsoleToOps() = true
-
 }
 
 private val myOutput = MyOutput(Bridge.SERVER.commandSource)
@@ -89,9 +88,14 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
         return
     }
     val cmdMgr = Bridge.SERVER.commandManager
-    Bridge.SERVER.commandSource.sendMessage(Text.literal("Executing command: /$cmd"))
+    
+    // В 1.18.2 отправка сообщения требует UUID (используем Util.NIL_UUID или UUID.randomUUID())
+    // И заменяем Text.literal на LiteralText
+    Bridge.SERVER.commandSource.sendMessage(
+        LiteralText("Executing command: /$cmd"), 
+        net.minecraft.util.Util.NIL_UUID
+    )
+    
     val source = Bridge.SERVER.commandSource.withOutput(myOutput)
     cmdMgr.executeWithPrefix(source, cmd)
-    //cmdMgr.dispatcher.execute(cmd, source)
-
 }

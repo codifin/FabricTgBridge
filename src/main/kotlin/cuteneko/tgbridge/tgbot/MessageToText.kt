@@ -6,15 +6,18 @@ import cuteneko.tgbridge.toPlainString
 import net.minecraft.text.HoverEvent
 import net.minecraft.text.Style
 import net.minecraft.text.Text
+import net.minecraft.text.LiteralText // Добавлено для 1.18.2
 import net.minecraft.util.Formatting
 
 val i18n = ConfigLoader.getI18n()
+
 fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
-    val text = Text.empty()
+    // В 1.18.2 нет метода Text.empty(), вместо него создаем пустой LiteralText
+    val text = LiteralText("") 
 
     replyToMessage?.let {
         text.append(
-            Text.literal(
+            LiteralText(
                 i18n.reply.format(
                     it.from?.rawUserMention(),
                     it.toText(10, false).toPlainString()
@@ -29,11 +32,11 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
     }
 
     forwardFrom?.let {
-        val info = Text.empty()
+        val info = LiteralText("")
         info.append(i18n.forwardedFromUser.format(it.rawUserMention()))
         it.username?.let { username -> info.append("\n$username") }
         text.append(
-            Text.literal(i18n.forwarded)
+            LiteralText(i18n.forwarded)
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.GOLD)
@@ -43,14 +46,14 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
     }
 
     forwardFromChat?.let {
-        val info = Text.empty()
+        val info = LiteralText("")
         when (it.type) {
             "channel" -> info.append(i18n.forwardedFromChannel.format(it.title))
             "group" -> info.append(i18n.forwardedFromGroup.format(it.title))
             else -> {}
         }
         text.append(
-            Text.literal(i18n.forwarded)
+            LiteralText(i18n.forwarded)
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.GOLD)
@@ -61,7 +64,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     if (!photo.isNullOrEmpty()) {
         text.append(
-            Text.literal(i18n.photo)
+            LiteralText(i18n.photo)
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.BLUE)
@@ -71,14 +74,14 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     sticker?.let {
         text.append(
-            Text.literal(i18n.sticker.format(it.emoji))
+            LiteralText(i18n.sticker.format(it.emoji))
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.BLUE)
                         .withHoverEvent(
                             HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
-                                Text.literal(i18n.stickerFrom.format(it.setName))
+                                LiteralText(i18n.stickerFrom.format(it.setName))
                             )
                         )
                 )
@@ -87,7 +90,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     document?.let {
         text.append(
-            Text.literal(i18n.document.format(it.fileName))
+            LiteralText(i18n.document.format(it.fileName))
                 .setStyle(
                     Style.EMPTY.withColor(Formatting.BLUE)
                 )
@@ -96,7 +99,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     voice?.let {
         text.append(
-            Text.literal(i18n.voice.format(it.duration))
+            LiteralText(i18n.voice.format(it.duration))
                 .setStyle(
                     Style.EMPTY.withColor(Formatting.BLUE)
                 )
@@ -105,7 +108,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     audio?.let {
         text.append(
-            Text.literal(i18n.audio.format(it.duration))
+            LiteralText(i18n.audio.format(it.duration))
                 .setStyle(
                     Style.EMPTY.withColor(Formatting.BLUE)
                 )
@@ -114,7 +117,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     video?.let {
         text.append(
-            Text.literal(i18n.video.format(it.duration))
+            LiteralText(i18n.video.format(it.duration))
                 .setStyle(
                     Style.EMPTY.withColor(Formatting.BLUE)
                 )
@@ -123,7 +126,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     poll?.let {
         text.append(
-            Text.literal(i18n.poll.format(it.question.trimMessage(trim, showMore).toPlainString(false)))
+            LiteralText(i18n.poll.format(it.question.trimMessage(trim, showMore).toPlainString(false)))
                 .setStyle(
                     Style.EMPTY.withColor(Formatting.BLUE)
                 )
@@ -136,7 +139,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
     if (text.siblings.isEmpty()) {
         text.append(
-            Text.literal(i18n.message)
+            LiteralText(i18n.message)
                 .setStyle(Style.EMPTY.withColor(Formatting.DARK_GREEN))
         )
     }
@@ -150,7 +153,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 
 private fun String.trimMessage(size: Int, showMore: Boolean = true): Text {
     val msg = replace("\n", " ")
-    val text = Text.empty()
+    val text = LiteralText("")
     if(size == 0 || this.length <= size) {
         text.append(msg)
         return text
@@ -158,14 +161,14 @@ private fun String.trimMessage(size: Int, showMore: Boolean = true): Text {
     text.append("${msg.substring(0, size)}...")
     if(showMore) {
         text.append(
-            Text.literal(i18n.more)
+            LiteralText(i18n.more)
                 .setStyle(
                     Style.EMPTY
                         .withColor(Formatting.GOLD)
                         .withHoverEvent(
                             HoverEvent(
-                            HoverEvent.Action.SHOW_TEXT, Text.literal(this)
-                        )
+                                HoverEvent.Action.SHOW_TEXT, LiteralText(this)
+                            )
                         )
                 )
         )

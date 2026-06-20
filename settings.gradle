@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        jcenter()
+        mavenCentral() // Заменяем jcenter() на актуальный центральный репозиторий
         maven {
             name = 'Fabric'
             url = 'https://maven.fabricmc.net/'
@@ -12,5 +12,6 @@ pluginManagement {
         id 'fabric-loom' version loom_version
         id "org.jetbrains.kotlin.jvm" version kotlin_version
     }
-
 }
+
+rootProject.name = 'fabric_tg_bridge'

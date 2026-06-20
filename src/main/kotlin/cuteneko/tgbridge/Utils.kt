@@ -4,43 +4,52 @@ package cuteneko.tgbridge
 
 import cuteneko.tgbridge.tgbot.User
 import kotlinx.coroutines.DelicateCoroutinesApi
-import net.minecraft.text.LiteralTextContent
+import net.minecraft.text.LiteralText // Изменено для 1.18.2
 import net.minecraft.text.Text
-import net.minecraft.text.TranslatableTextContent
+import net.minecraft.text.TranslatableText // Изменено для 1.18.2
 
 fun Text?.toPlainString(formatted: Boolean = true): String {
     if (this == null) {
         return ""
     }
     var result = ""
-    if(siblings.size == 0){
-        result = when (val content = content) {
-            is LiteralTextContent -> {
-                content.string.escapeHTML()
+    
+    // В 1.18.2 вместо siblings используется children
+    if (children.size == 0) {
+        // В 1.18.2 проверяем сам объект Text, так как разделения на Content ещё нет
+        result = when (this) {
+            is LiteralText -> {
+                // У LiteralText в 1.18.2 строка получается через метод rawString
+                this.rawString.escapeHTML()
             }
 
-            is TranslatableTextContent -> {
+            is TranslatableText -> {
                 val lang = Bridge.LANG
-                if(!lang.containsKey(content.key)) content.key
-                val args = content.args.map {
-                    if(it is Text) it.toPlainString()
+                val key = this.key
+                if (!lang.containsKey(key)) key
+                
+                // В 1.18.2 аргументы лежат в свойстве args
+                val args = this.args.map {
+                    if (it is Text) it.toPlainString()
                     else it.toString()
                 }.toTypedArray()
-                String.format(lang[content.key]!!.escapeHTML(), *args)
+                
+                String.format(lang[key]!!.escapeHTML(), *args)
             }
 
             else -> {
-                string.escapeHTML()
+                // На всякий случай для других типов (например, KeybindText)
+                this.asString().escapeHTML()
             }
         }
-    }
-    else {
-        siblings.forEach {
+    } else {
+        // Проходимся по дочерним элементам через children
+        children.forEach {
             result += it.toPlainString()
         }
     }
 
-    if(!formatted) return result
+    if (!formatted) return result
     var format = ""
     if (style.isBold) format += "<b>"
     if (style.isItalic) format += "<i>"

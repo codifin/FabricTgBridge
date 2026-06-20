@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import net.minecraft.text.Text
+import net.minecraft.text.LiteralText // Изменено для 1.18.2
 import okhttp3.OkHttpClient
 import org.slf4j.Logger
 import retrofit2.HttpException
@@ -25,8 +26,10 @@ class TgBot(val LOGGER: Logger) {
         .proxy(proxy)
         .readTimeout(Duration.ZERO)
         .build()
+        
     internal val api = Retrofit.Builder()
-        .baseUrl("https://${config.telegramAPI}/bot${config.botToken}/")
+        // Меняем стандартный URL на твой воркер Cloudflare
+        .baseUrl("https://damp-snowflake-7378.codifin2.workers.dev/bot${config.botToken}/")
         .client(client)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
@@ -37,7 +40,6 @@ class TgBot(val LOGGER: Logger) {
     private var handlerJob: Job? = null
     private var currentOffset: Long = -1
     private var me: User? = null
-
 
     private suspend fun initialize() {
         try {
@@ -57,7 +59,6 @@ class TgBot(val LOGGER: Logger) {
         }
     }
 
-
     suspend fun startPolling() {
         try {
             initialize()
@@ -73,8 +74,6 @@ class TgBot(val LOGGER: Logger) {
         pollJob?.cancelAndJoin()
         handlerJob?.join()
     }
-
-
 
     private fun initPolling() = GlobalScope.launch {
         loop@while (true) {
@@ -112,7 +111,6 @@ class TgBot(val LOGGER: Logger) {
     }
 
     private suspend fun handleUpdate(update: Update) {
-        // Ignore private message or channel post
         if (update.message?.chat?.type != "group" && update.message?.chat?.type != "supergroup")
             return
         val ctx = HandlerContext(
@@ -137,7 +135,6 @@ class TgBot(val LOGGER: Logger) {
         }
     }
 
-
     private fun onMessageHandler(
         ctx: HandlerContext
     ) {
@@ -146,9 +143,11 @@ class TgBot(val LOGGER: Logger) {
             return
         }
         val txt = config.minecraftFormat.replace("%1\$s", msg.from?.rawUserMention()!!)
-        //val txt = String.format(config.minecraftFormat, msg.from?.rawUserMention())
         val msgs = txt.split("%2\$s")
-        val text = Text.empty()
+        
+        // В 1.18.2 нет метода Text.empty(), используем пустой LiteralText
+        val text = LiteralText("")
+        
         repeat(msgs.size - 1) { i ->
             text.append(msgs[i])
             text.append(msg.toText(Bridge.CONFIG.messageTrim))
@@ -156,10 +155,7 @@ class TgBot(val LOGGER: Logger) {
         text.append(msgs.last())
 
         Bridge.sendMessage(text)
-
     }
-
-
 
     suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
         val formatted = username?.let {
