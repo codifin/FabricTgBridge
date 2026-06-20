@@ -18,7 +18,10 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
         if (txt.isBlank()) return
         bot.LOGGER.info(txt)
         
-        GlobalScope.launch {
+        // Перенаправляем отправку в Telegram во внутренний асинхронный метод бота,
+        // чтобы игра не ждала ответа от сети Cloudflare и чат не фризился
+        bot.LOGGER.debug("Sending to Telegram: $txt")
+        kotlinx.coroutines.MainScope().launch {
             bot.sendMessageToTelegram(txt)
         }
     }

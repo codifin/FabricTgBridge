@@ -1,12 +1,8 @@
-@file:OptIn(DelicateCoroutinesApi::class)
-
 package cuteneko.tgbridge
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import cuteneko.tgbridge.tgbot.TgBot
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
@@ -21,6 +17,11 @@ import org.slf4j.LoggerFactory
 import java.io.FileNotFoundException
 
 class Bridge : ModInitializer {
+    
+    // Создаем Scope для главного класса мода
+    private val bridgeJob = SupervisorJob()
+    private val bridgeScope = CoroutineScope(Dispatchers.Default + bridgeJob)
+
     override fun onInitialize() {
         LOGGER.info("Telegram bridge loaded!")
         INSTANCE = this
@@ -40,23 +41,21 @@ class Bridge : ModInitializer {
         }
 
         BOT = TgBot(LOGGER)
-        GlobalScope.launch { BOT.startPolling() }
+        bridgeScope.launch { BOT.startPolling() }
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _ ->
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_reload")
-                .requires {
-                    it.hasPermissionLevel(4)
-                }
+                .requires { it.hasPermissionLevel(4) }
                 .executes {
                     if(RELOADING) {
-                        // В 1.18.2 используется sendFeedback(text, broadcastToOps)
                         it.source.sendFeedback(LiteralText("A reload is already in progress!").formatted(Formatting.RED), false)
                         return@executes 1
                     }
                     RELOADING = true
                     it.source.sendFeedback(LiteralText("Reloading!"), false)
                     CONFIG = ConfigLoader.load()
-                    GlobalScope.launch {
+                    
+                    bridgeScope.launch {
                         try {
                             BOT.stop()
                             BOT = TgBot(LOGGER)
@@ -77,13 +76,21 @@ class Bridge : ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTED.register {
             SERVER = it
-            if(CONFIG.sendServerStarted) GlobalScope.launch { BOT.sendMessageToTelegram(CONFIG.serverStartedMessage)}
+            if(CONFIG.sendServerStarted) {
+                bridgeScope.launch { BOT.sendMessageToTelegram(CONFIG.serverStartedMessage) }
+            }
         }
 
         ServerLifecycleEvents.SERVER_STOPPING.register {
-            GlobalScope.launch {
-                BOT.stop()
-                if(CONFIG.sendServerStopping)  BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
+            // Мгновенно тушим все фоновые процессы мода при остановке сервера
+            runBlocking {
+                try {
+                    if(CONFIG.sendServerStopping) BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
+                    BOT.stop()
+                } finally {
+                    bridgeJob.cancelChildren()
+                    bridgeJob.cancel()
+                }
             }
         }
     }
@@ -101,10 +108,13 @@ class Bridge : ModInitializer {
         
         fun sendMessage(text: Text?) {
             if (text == null) return
-            SERVER.playerManager.playerList.forEach {
-                it.sendSystemMessage(text, Util.NIL_UUID)
+            // Убеждаемся, что отправка идет строго в основном потоке игры
+            SERVER.execute {
+                SERVER.playerManager.playerList.forEach {
+                    it.sendSystemMessage(text, Util.NIL_UUID)
+                }
+                SERVER.sendSystemMessage(text, Util.NIL_UUID)
             }
-            SERVER.sendSystemMessage(text, Util.NIL_UUID)
         }
     }
 }

@@ -1,5 +1,3 @@
-@file:OptIn(DelicateCoroutinesApi::class)
-
 package cuteneko.tgbridge.tgbot
 
 import cuteneko.tgbridge.Bridge
@@ -28,7 +26,6 @@ class TgBot(val LOGGER: Logger) {
         .build()
         
     internal val api = Retrofit.Builder()
-        // Теперь адрес будет гибко браться из config.json:
         .baseUrl("https://${config.telegramAPI}/bot${config.botToken}/")
         .client(client)
         .addConverterFactory(GsonConverterFactory.create())
@@ -36,6 +33,11 @@ class TgBot(val LOGGER: Logger) {
         .create(TgApi::class.java)
 
     private val updateChan = Channel<Update>()
+    
+    // ИСПРАВЛЕНИЕ: Свой изолированный Scope вместо глобального для предотвращения утечек памяти
+    private val botJob = SupervisorJob()
+    private val botScope = CoroutineScope(Dispatchers.IO + botJob)
+    
     private var pollJob: Job? = null
     private var handlerJob: Job? = null
     private var currentOffset: Long = -1
@@ -73,20 +75,24 @@ class TgBot(val LOGGER: Logger) {
     }
 
     suspend fun stop() {
+        // ИСПРАВЛЕНИЕ: Отменяем весь Scope. Бесконечный цикл мгновенно прервется, память очистится
+        botJob.cancelChildren()
+        botJob.cancel()
         pollJob?.cancelAndJoin()
         handlerJob?.join()
+        updateChan.close()
     }
 
-    private fun initPolling() = GlobalScope.launch {
-        loop@while (true) {
+    private fun initPolling() = botScope.launch {
+        loop@while (isActive) { // ИСПРАВЛЕНИЕ: Проверяем isActive вместо true
             try {
                 api.getUpdates(
                     offset = currentOffset,
                     timeout = config.pollTimeout,
                 ).result?.let { updates ->
                     if (updates.isNotEmpty()) {
-                        // ИСПРАВЛЕНО: используем обычный цикл for вместо forEach, чтобы работал suspend-метод .send()
                         for (update in updates) {
+                            if (!isActive) break@loop
                             updateChan.send(update)
                         }
                         currentOffset = updates.last().updateId + 1
@@ -96,17 +102,18 @@ class TgBot(val LOGGER: Logger) {
                 when (e) {
                     is CancellationException -> break@loop
                     else -> {
-                        Bridge.LOGGER.error(e.message)
+                        Bridge.LOGGER.error("Polling error: ${e.message}")
+                        delay(2000) // Защита от спама запросами при ошибке сети
                         continue@loop
                     }
                 }
             }
         }
-        updateChan.close()
     }
 
-    private fun initHandler() = GlobalScope.launch {
+    private fun initHandler() = botScope.launch {
         updateChan.consumeEach {
+            if (!isActive) return@launch
             try {
                 handleUpdate(it)
             } catch (e: Exception) {
@@ -118,7 +125,6 @@ class TgBot(val LOGGER: Logger) {
     private suspend fun handleUpdate(update: Update) {
         if (update.message?.chat?.type != "group" && update.message?.chat?.type != "supergroup")
             return
-        // Возвращаем стандартное создание контекста (без bot = this)
         val ctx = HandlerContext(
             update,
             update.message,
@@ -133,7 +139,6 @@ class TgBot(val LOGGER: Logger) {
                     cmds[0].substring(1)
                 } else args[0].substring(1)
                 
-                // Передаем и бота (this), и контекст (ctx) в invoke для KSuspendFunction2
                 commandMap[cmd]?.invoke(this, ctx.copy(commandArgs = args))
                 return
             }
@@ -141,28 +146,29 @@ class TgBot(val LOGGER: Logger) {
         }
     }
 
-    private fun onMessageHandler(
-        ctx: HandlerContext
-    ) {
+    private fun onMessageHandler(ctx: HandlerContext) {
         val msg = ctx.message!!
-        if (config.chatId != msg.chat.id) {
-            return
-        }
+        if (config.chatId != msg.chat.id) return
         val txt = config.minecraftFormat.replace("%1\$s", msg.from?.rawUserMention()!!)
         val msgs = txt.split("%2\$s")
         
         val text = LiteralText("")
-        
         repeat(msgs.size - 1) { i ->
             text.append(LiteralText(msgs[i]))
             text.append(msg.toText(Bridge.CONFIG.messageTrim))
         }
         text.append(LiteralText(msgs.last()))
 
-        Bridge.sendMessage(text)
+        // ИСПРАВЛЕНИЕ: Отправку в игровой чат делаем через планировщик Minecraft, 
+        // чтобы не вешать и не блокировать поток сервера
+        Bridge.SERVER.execute {
+            Bridge.sendMessage(text)
+        }
     }
 
-    suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
+    // ИСПРАВЛЕНИЕ: Сетевой запрос отправки в телеграм переводим в IO поток, 
+    // чтобы основной поток игры не замирал (не зависал чат)
+    suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) = withContext(Dispatchers.IO) {
         val formatted = username?.let {
             String.format(config.telegramFormat, username, text)
         } ?: text
