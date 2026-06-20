@@ -18,7 +18,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
         
-      # Запускаем полную сборку проекта вместо одиночного shadowJar
+      # Запускаем полную сборку проекта вместо одиночн2ого shadowJar
       - name: Run build with Gradle Wrapper
         run: ./gradlew build
         
