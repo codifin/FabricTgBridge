@@ -163,28 +163,32 @@ class TgBot(val LOGGER: Logger) {
         }
     }
 
-    suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) = withContext(Dispatchers.IO) {
-        val formatted = username?.let {
-            String.format(config.telegramFormat, username, text)
-        } ?: text
-        try {
-            // ИСПРАВЛЕНО: Вынесли вызовы API из выражения присвоения, чтобы ветвление if/else не требовало строгого возврата типов
-            val result = if (config.useHtmlFormat) {
-                api.sendMessage(config.chatId, formatted, reply)
-            } else {
-                api.sendMessageWithoutParse(config.chatId, formatted, reply)
+    suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
+        withContext(Dispatchers.IO) {
+            val formatted = username?.let {
+                String.format(config.telegramFormat, username, text)
+            } ?: text
+            try {
+                // Вызываем API обычными командами, ничего не возвращая наружу
+                if (config.useHtmlFormat) {
+                    val result = api.sendMessage(config.chatId, formatted, reply)
+                    if (!result.ok) {
+                        LOGGER.error(result.description)
+                    }
+                } else {
+                    val result = api.sendMessageWithoutParse(config.chatId, formatted, reply)
+                    if (!result.ok) {
+                        LOGGER.error(result.description)
+                    }
+                }
+            } catch (e: HttpException) {
+                e.response()?.errorBody()?.string()?.let {
+                    LOGGER.error(it)
+                    LOGGER.error(formatted)
+                }
+            } catch (e: Exception) {
+                LOGGER.error(e.message)
             }
-            
-            if (!result.ok) {
-                LOGGER.error(result.description)
-            }
-        } catch (e: HttpException) {
-            e.response()?.errorBody()?.string()?.let {
-                LOGGER.error(it)
-                LOGGER.error(formatted)
-            }
-        } catch (e: Exception) {
-            LOGGER.error(e.message)
         }
     }
 }
