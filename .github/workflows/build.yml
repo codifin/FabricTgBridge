@@ -22,12 +22,9 @@ jobs:
       - name: Run build with Gradle Wrapper
         run: ./gradlew build
         
-      # Публикуем готовый скомпилированный мод
-      - name: Publish build
-        uses: actions/upload-artifact@v4  # Обновлено с v3 на v4
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: build
-          path: |
-            build/libs/*.jar
-            !build/libs/*-shadow.jar
-            !build/libs/*-sources.jar
+          name: Fabric-Tg-Bridge-Jar
+          # Звёздочка в конце соберет любые сгенерированные jar-файлы из папки libs
+          path: build/libs/*.jar
