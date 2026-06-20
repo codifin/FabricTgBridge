@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 class MyOutput(private val bot: TgBot) : CommandOutput {
-    // В 1.18.2 интерфейс требует именно этот метод
     override fun sendSystemMessage(message: Text, sender: UUID) {
         val txt = message.toPlainString(false)
         if (txt.isBlank()) return
@@ -26,17 +25,16 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
 
     override fun shouldReceiveFeedback(): Boolean = true
     override fun shouldTrackOutput(): Boolean = true
-    // Метод 1.18.2 вместо shouldBroadcastToOps
     override fun shouldBroadcastConsoleToOps(): Boolean = false
 }
 
-// Убрали явное упоминание несуществующего CmdHandler, Котлин сам выведет типы
-val TgBot.commandMap
+// Явно указываем тип мапы как ссылки на suspend-функции расширения бота
+val TgBot.commandMap: Map<String, kotlin.reflect.KSuspendFunction2<TgBot, HandlerContext, Unit>>
     get() = mapOf(
-        "chat_id" to ::chatIdHandler,
-        "list" to ::listHandler,
-        "meow" to ::meowHandler,
-        "cmd" to ::commandHandler
+        "chat_id" to TgBot::chatIdHandler,
+        "list" to TgBot::listHandler,
+        "meow" to TgBot::meowHandler,
+        "cmd" to TgBot::commandHandler
     )
 
 suspend fun TgBot.chatIdHandler(ctx: HandlerContext) {
@@ -57,8 +55,9 @@ suspend fun TgBot.listHandler(ctx: HandlerContext) {
 
 suspend fun TgBot.meowHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    // Массив meow берется напрямую у инстанса TgBot (через ключевое слово this)
-    this.sendMessageToTelegram(this.meow.shuffled()[0], reply = msg.messageId)
+    // Преобразуем в список, чтобы shuffled() отработал без двусмысленности типов
+    val randomMeow = this.meow.toList().shuffled().first()
+    this.sendMessageToTelegram(randomMeow, reply = msg.messageId)
 }
 
 suspend fun TgBot.commandHandler(ctx: HandlerContext) {
@@ -72,7 +71,6 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     
     val cmdMgr = Bridge.SERVER.commandManager
     
-    // В 1.18.2 выводим лог через sendFeedback у источника команд
     Bridge.SERVER.commandSource.sendFeedback(
         LiteralText("Executing command: /$cmd"), 
         false
@@ -82,6 +80,5 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     val source = Bridge.SERVER.commandSource.withOutput(myOutput)
     
     cmd = cmd.removePrefix("/")
-    // В 1.18.2 метод менеджера команд называется просто execute
     cmdMgr.execute(source, cmd)
 }

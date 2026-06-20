@@ -8,7 +8,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import net.minecraft.text.Text
-import net.minecraft.text.LiteralText // Изменено для 1.18.2
+import net.minecraft.text.LiteralText
 import okhttp3.OkHttpClient
 import org.slf4j.Logger
 import retrofit2.HttpException
@@ -28,7 +28,6 @@ class TgBot(val LOGGER: Logger) {
         .build()
         
     internal val api = Retrofit.Builder()
-        // Меняем стандартный URL на твой воркер Cloudflare
         .baseUrl("https://damp-snowflake-7378.codifin2.workers.dev/bot${config.botToken}/")
         .client(client)
         .addConverterFactory(GsonConverterFactory.create())
@@ -41,7 +40,6 @@ class TgBot(val LOGGER: Logger) {
     private var currentOffset: Long = -1
     private var me: User? = null
 
-    // Список урчаний для команды /meow (перенесено сюда, чтобы CommandHandler мог его прочесть через this.meow)
     val meow = arrayOf("meow~", "mew!", "purr...")
 
     private suspend fun initialize() {
@@ -116,11 +114,11 @@ class TgBot(val LOGGER: Logger) {
     private suspend fun handleUpdate(update: Update) {
         if (update.message?.chat?.type != "group" && update.message?.chat?.type != "supergroup")
             return
+        // Возвращаем стандартное создание контекста (без bot = this)
         val ctx = HandlerContext(
             update,
             update.message,
             update.message.chat,
-            bot = this // Явно передаем инстанс бота в контекст
         )
         update.message.let {
             if (it.text?.startsWith("/") == true) {
@@ -131,7 +129,7 @@ class TgBot(val LOGGER: Logger) {
                     cmds[0].substring(1)
                 } else args[0].substring(1)
                 
-                // ИСПРАВЛЕНО: Безопасный вызов функциональной ссылки из мапы через .invoke()
+                // Передаем и бота (this), и контекст (ctx) в invoke для KSuspendFunction2
                 commandMap[cmd]?.invoke(this, ctx.copy(commandArgs = args))
                 return
             }
@@ -149,7 +147,6 @@ class TgBot(val LOGGER: Logger) {
         val txt = config.minecraftFormat.replace("%1\$s", msg.from?.rawUserMention()!!)
         val msgs = txt.split("%2\$s")
         
-        // В 1.18.2 нет метода Text.empty(), используем пустой LiteralText
         val text = LiteralText("")
         
         repeat(msgs.size - 1) { i ->
