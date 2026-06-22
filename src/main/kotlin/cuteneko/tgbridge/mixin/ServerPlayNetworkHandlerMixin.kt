@@ -17,13 +17,17 @@ class ServerPlayNetworkHandlerMixin {
 
     private val mixinScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    @Inject(method = ["onChatMessage"], at = [At("TAIL")])
+    // ИСПРАВЛЕНО: Добавлен Intermediary-маппинг метода (method_14364) и его дескриптор,
+    // чтобы сервер понимал цель инжекта в обфусцированной среде без refMap.
+    @Inject(
+        method = ["method_14364(Lnet/minecraft/network/packet/c2s/play/ChatMessageC2SPacket;)V", "onChatMessage"], 
+        at = [At("TAIL")],
+        remap = false
+    )
     fun onChatMessageInject(packet: ChatMessageC2SPacket, ci: CallbackInfo) {
         if (Bridge.CONFIG.sendChatMessage) {
             val text = packet.chatMessage
             if (!text.startsWith("/")) {
-                // ИСПРАВЛЕНО: Вместо капризного @Shadow поля, мы безопасно приводим текущий контекст (this)
-                // к целевому обработчику сети и берём игрока через стандартный метод getPlayer() / player.
                 val handler = this as? ServerPlayNetworkHandler ?: return
                 val username = handler.player?.name?.string ?: "Unknown Player"
                 
