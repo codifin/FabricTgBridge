@@ -24,15 +24,17 @@ class ServerPlayNetworkHandlerMixin {
 
     @Inject(method = ["onChatMessage"], at = [At("TAIL")])
     fun onChatMessageInject(packet: ChatMessageC2SPacket, ci: CallbackInfo) {
-        // Проверяем, включена ли отправка сообщений чата в конфиге
         if (Bridge.CONFIG.sendChatMessage) {
             val text = packet.chatMessage
-            // Игнорируем команды внутри игрового чата (например, /me или кастомные команды)
             if (!text.startsWith("/")) {
                 val username = player.name.string
                 mixinScope.launch {
-                    if (::Bridge.BOT.isInitialized) {
-                        Bridge.BOT.sendMessageToTelegram(text, username)
+                    // ИСПРАВЛЕНО: Безопасное обращение к внешнему lateinit свойству BOT через try-catch
+                    try {
+                        val bot = Bridge.BOT
+                        bot.sendMessageToTelegram(text, username)
+                    } catch (e: UninitializedPropertyAccessException) {
+                        // Бот еще не успел инициализироваться, либо выключен — игнорируем отправку пакета
                     }
                 }
             }
