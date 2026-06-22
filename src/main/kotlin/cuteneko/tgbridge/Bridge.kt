@@ -6,7 +6,7 @@ import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
-import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents // ДОБАВЛЕН ИМПОРТ СОБЫТИЙ ЧАТА
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
@@ -73,10 +73,6 @@ class Bridge : ModInitializer {
                 })
         }
 
-        // ==========================================
-        // ИСПРАВЛЕНО: ДОБАВЛЕНЫ СЛУШАТЕЛИ СОБЫТИЙ ДЛЯ ДВУСТОРОННЕГО МОСТА
-        // ==========================================
-
         // 1. Перехват сообщений из игрового чата в Telegram
         ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
             if (CONFIG.sendChatMessage) {
@@ -118,8 +114,6 @@ class Bridge : ModInitializer {
 
         // Остановка сервера
         ServerLifecycleEvents.SERVER_STOPPING.register {
-            // ИСПРАВЛЕНО: Здесь runBlocking необходим, так как поток закрытия главного сервера 
-            // должен дождаться отправки прощального сообщения, иначе процесс Майнкрафта умрет раньше.
             runBlocking {
                 try {
                     withTimeoutOrNull(2500) {
@@ -142,11 +136,11 @@ class Bridge : ModInitializer {
         const val MOD_ID = "tgbridge"
         val LOGGER: Logger = LoggerFactory.getLogger(MOD_ID)
 
-        late var INSTANCE: Bridge
-        late var SERVER: MinecraftServer
-        late var CONFIG: Config
-        late var LANG: Map<String, String>
-        late var BOT: TgBot
+        lateinit var INSTANCE: Bridge
+        lateinit var SERVER: MinecraftServer
+        lateinit var CONFIG: Config
+        lateinit var LANG: Map<String, String>
+        lateinit var BOT: TgBot
         var RELOADING: Boolean = false
         
         fun sendMessage(text: Text?) {
