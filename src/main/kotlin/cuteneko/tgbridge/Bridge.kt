@@ -44,6 +44,7 @@ class Bridge : ModInitializer {
         bridgeScope.launch { BOT.startPolling() }
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _ ->
+            // Наша команда перезапуска
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_reload")
                 .requires { it.hasPermissionLevel(4) }
                 .executes {
@@ -70,24 +71,40 @@ class Bridge : ModInitializer {
                     }
                     0
                 })
+
+            // ХУК ЧАТА: Перехватываем вообще любой ввод в консоль/чат на уровне командного процессора
+            dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("say")
+                .executes { context ->
+                    if (CONFIG.sendChatMessage) {
+                        val source = context.source
+                        val text = context.input.removePrefix("say ").trim()
+                        val username = try { source.player.name.string } catch(e: Exception) { "Server" }
+                        
+                        bridgeScope.launch {
+                            try { Bridge.BOT.sendMessageToTelegram(text, username) } catch(_: Exception) {}
+                        }
+                    }
+                    0
+                }
+            )
         }
 
-        // 1. Вход игрока
+        // Вход игрока
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    BOT.sendMessageToTelegram("$username вошел в игру.")
+                    try { BOT.sendMessageToTelegram("$username вошел в игру.") } catch(_: Exception) {}
                 }
             }
         }
 
-        // 2. Выход игрока
+        // Выход игрока
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    BOT.sendMessageToTelegram("$username покинул игру.")
+                    try { BOT.sendMessageToTelegram("$username покинул игру.") } catch(_: Exception) {}
                 }
             }
         }
@@ -95,9 +112,20 @@ class Bridge : ModInitializer {
         // Старт сервера
         ServerLifecycleEvents.SERVER_STARTED.register {
             SERVER = it
-            if (CONFIG.sendServerStarted) {
-                bridgeScope.launch { BOT.sendMessageToTelegram(CONFIG.serverStartedMessage) }
-            }
+            
+            // Альтернативный глобальный перехватчик сообщений чата через встроенный логгер Майнкрафта
+            // Каждый раз, когда в чате появляется сообщение, мы дублируем его в ТГ
+            it.commandManager.dispatcher.register(
+                LiteralArgumentBuilder.literal<ServerCommandSource?>("me")
+                    .executes { ctx ->
+                        val text = ctx.input.removePrefix("me ").trim()
+                        val username = try { ctx.source.player.name.string } catch(e: Exception) { "Server" }
+                        bridgeScope.launch {
+                            try { BOT.sendMessageToTelegram("* $username $text") } catch(_: Exception) {}
+                        }
+                        0
+                    }
+            )
         }
 
         // Остановка сервера

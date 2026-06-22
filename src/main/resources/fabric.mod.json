@@ -25,9 +25,7 @@
       }
     ]
   },
-  "mixins": [
-    "tgbridge.mixins.json"
-  ],
+  "mixins": [],
   "depends": {
     "fabricloader": ">=0.14.21",
     "fabric": ">=0.58.0+1.18.2",
