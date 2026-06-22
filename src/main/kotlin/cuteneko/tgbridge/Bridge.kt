@@ -6,6 +6,8 @@ import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
 import net.minecraft.text.LiteralText
@@ -71,6 +73,42 @@ class Bridge : ModInitializer {
                 })
         }
 
+        // ==========================================
+        // ИСПРАВЛЕНО: ДОБАВЛЕНЫ СЛУШАТЕЛИ СОБЫТИЙ ДЛЯ ДВУСТОРОННЕГО МОСТА
+        // ==========================================
+
+        // 1. Перехват сообщений из игрового чата в Telegram
+        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
+            if (CONFIG.sendChatMessage) {
+                val text = message.content.toPlainString(false)
+                val username = sender.name.string
+                bridgeScope.launch {
+                    BOT.sendMessageToTelegram(text, username)
+                }
+            }
+        }
+
+        // 2. Перехват входа игрока на сервер
+        ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
+            if (CONFIG.sendGameMessage) {
+                val username = handler.player.name.string
+                bridgeScope.launch {
+                    BOT.sendMessageToTelegram("$username вошел в игру.")
+                }
+            }
+        }
+
+        // 3. Перехват выхода игрока с сервера
+        ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
+            if (CONFIG.sendGameMessage) {
+                val username = handler.player.name.string
+                bridgeScope.launch {
+                    BOT.sendMessageToTelegram("$username покинул игру.")
+                }
+            }
+        }
+
+        // Старт сервера
         ServerLifecycleEvents.SERVER_STARTED.register {
             SERVER = it
             if (CONFIG.sendServerStarted) {
@@ -78,12 +116,13 @@ class Bridge : ModInitializer {
             }
         }
 
+        // Остановка сервера
         ServerLifecycleEvents.SERVER_STOPPING.register {
-            // ИСПРАВЛЕНО: Полностью убран runBlocking. Завершаем работу асинхронно.
-            // Используем жесткий таймаут (3 секунды) на сетевую отправку, чтобы сервер не вис при выключении.
-            bridgeScope.launch {
+            // ИСПРАВЛЕНО: Здесь runBlocking необходим, так как поток закрытия главного сервера 
+            // должен дождаться отправки прощального сообщения, иначе процесс Майнкрафта умрет раньше.
+            runBlocking {
                 try {
-                    withTimeoutOrNull(3000) {
+                    withTimeoutOrNull(2500) {
                         if (CONFIG.sendServerStopping) {
                             BOT.sendMessageToTelegram(CONFIG.serverStoppingMessage)
                         }
@@ -103,16 +142,15 @@ class Bridge : ModInitializer {
         const val MOD_ID = "tgbridge"
         val LOGGER: Logger = LoggerFactory.getLogger(MOD_ID)
 
-        lateinit var INSTANCE: Bridge
-        lateinit var SERVER: MinecraftServer
-        lateinit var CONFIG: Config
-        lateinit var LANG: Map<String, String>
-        lateinit var BOT: TgBot
+        late var INSTANCE: Bridge
+        late var SERVER: MinecraftServer
+        late var CONFIG: Config
+        late var LANG: Map<String, String>
+        late var BOT: TgBot
         var RELOADING: Boolean = false
         
         fun sendMessage(text: Text?) {
             if (text == null) return
-            // ОПТИМИЗАЦИЯ: Безопасная проверка инициализации lateinit, чтобы избежать краша
             if (!::SERVER.isInitialized) return
 
             SERVER.execute {

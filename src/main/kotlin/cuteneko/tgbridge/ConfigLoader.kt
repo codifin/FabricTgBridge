@@ -12,7 +12,6 @@ object ConfigLoader {
 
     private val gson = GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create()
     
-    // ОПТИМИЗАЦИЯ: Кэшируем пути, чтобы не дергать FabricLoader при каждом чтении
     private val modConfigDir: Path by lazy {
         FabricLoader.getInstance().configDir.resolve(Bridge.MOD_ID).also {
             if (!it.exists()) it.createDirectory()
@@ -25,36 +24,37 @@ object ConfigLoader {
 
     fun load(): Config {
         if (!configFile.exists()) return Config()
-        // ОПТИМИЗАЦИЯ: .bufferedReader().use автоматически закроет файл после чтения
-        return configFile.bufferedReader().use { reader ->
+        return configFile.bufferedReader(Charsets.UTF_8).use { reader ->
             gson.fromJson(reader, Config::class.java)
         }
     }
 
     fun save(config: Config) {
         val json = gson.toJson(config)
+        // ИСПРАВЛЕНО: Явное указание UTF_8 для предотвращения "кракозябр" в Windows-консолях
         configFile.writeText(json, Charsets.UTF_8)
     }
 
     fun getLang(): Map<String, String> {
         if (!langFile.exists()) {
             val stream = javaClass.classLoader.getResourceAsStream("assets/lang.json")
-            InputStreamReader(stream!!).use { reader ->
-                langFile.writeText(reader.readText())
+            // ИСПРАВЛЕНО: Безопасное чтение встроенного ресурса в UTF-8
+            InputStreamReader(stream!!, Charsets.UTF_8).use { reader ->
+                langFile.writeText(reader.readText(), Charsets.UTF_8)
             }
         }
-        // ОПТИМИЗАЦИЯ: Читаем через Type Token для безопасного приведения типов в Map
         val type = object : TypeToken<Map<String, String>>() {}.type
-        return langFile.bufferedReader().use { reader ->
+        return langFile.bufferedReader(Charsets.UTF_8).use { reader ->
             gson.fromJson(reader, type)
         }
     }
 
     fun getI18n(): I18n {
         if (!i18nFile.exists()) {
-            i18nFile.writeText(gson.toJson(I18n()))
+            // ИСПРАВЛЕНО: Генерация дефолтного русского i18n.json строго в UTF-8
+            i18nFile.writeText(gson.toJson(I18n()), Charsets.UTF_8)
         }
-        return i18nFile.bufferedReader().use { reader ->
+        return i18nFile.bufferedReader(Charsets.UTF_8).use { reader ->
             gson.fromJson(reader, I18n::class.java)
         }
     }

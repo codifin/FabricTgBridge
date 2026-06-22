@@ -17,23 +17,27 @@ import java.net.Proxy
 import java.time.Duration
 
 class TgBot(val LOGGER: Logger) {
-    private val config = Bridge.CONFIG
-    private val proxy = if (!config.proxyEnabled) Proxy.NO_PROXY else Proxy(Proxy.Type.HTTP, InetSocketAddress(config.proxyHost, config.proxyPort))
-    private val client = OkHttpClient
-        .Builder()
-        .proxy(proxy)
-        .readTimeout(Duration.ZERO)
-        .build()
+    // ОПТИМИЗАЦИЯ: Всегда берем актуальный конфиг, чтобы избежать утечек старых данных при reload
+    private val config get() = Bridge.CONFIG
+    
+    private val proxy get() = if (!config.proxyEnabled) Proxy.NO_PROXY else Proxy(Proxy.Type.HTTP, InetSocketAddress(config.proxyHost, config.proxyPort))
+    
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .proxy(proxy)
+            .readTimeout(Duration.ZERO)
+            .build()
+    }
         
-    internal val api = Retrofit.Builder()
-        .baseUrl("https://${config.telegramAPI}/bot${config.botToken}/")
-        .client(client)
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-        .create(TgApi::class.java)
+    internal val api by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://${config.telegramAPI}/bot${config.botToken}/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(TgApi::class.java)
+    }
 
-    // ОПТИМИЗАЦИЯ: Добавлен буфер для канала, чтобы быстрая отправка апдейтов 
-    // не блокировала поток поллинга при микрофризах игрового сервера
     private val updateChan = Channel<Update>(Channel.BUFFERED)
     
     private val botJob = SupervisorJob()
@@ -46,19 +50,18 @@ class TgBot(val LOGGER: Logger) {
 
     val meow = arrayOf("meow~", "mew!", "purr...")
 
-    // ОПТИМИЗАЦИЯ: Предоставляем безопасный доступ к Scope для обработчика команд (CommandHandler.kt)
     fun getBotScope(): CoroutineScope = botScope
 
     private suspend fun initialize() {
         try {
             me = api.getMe().result!!
             val commands = arrayOf(
-                BotCommand("chat_id", "Get current chat ID."),
-                BotCommand("cmd", "Run command."),
-                BotCommand("list", "Show online players."),
-                BotCommand("meow", "Meow!")
+                BotCommand("chat_id", "Получить ID текущего чата."),
+                BotCommand("cmd", "Выполнить консольную команду."),
+                BotCommand("list", "Показать список игроков онлайн."),
+                BotCommand("meow", "Мяукнуть!")
             )
-            api.setMyCommands(SetCommands(commands.toList())) // Каст в List согласно нашей оптимизации DataStruct
+            api.setMyCommands(SetCommands(commands.toList()))
             api.deleteWebhook(true)
         } catch (e: HttpException) {
             e.response()?.errorBody()?.string()?.let {
@@ -71,7 +74,7 @@ class TgBot(val LOGGER: Logger) {
         try {
             initialize()
         } catch(e: Exception) {
-            Bridge.LOGGER.error("Failed to initialize! Check your network and configuration!")
+            Bridge.LOGGER.error("Не удалось инициализировать бота! Проверьте сеть и токен!")
             Bridge.LOGGER.error(e.message)
         }
         pollJob = initPolling()
@@ -105,8 +108,8 @@ class TgBot(val LOGGER: Logger) {
                 when (e) {
                     is CancellationException -> break@loop
                     else -> {
-                        Bridge.LOGGER.error("Polling error: ${e.message}")
-                        delay(2000) // Защита от OOM при падении сети/прокси
+                        Bridge.LOGGER.error("Ошибка поллинга: ${e.message}")
+                        delay(2000)
                         continue@loop
                     }
                 }
@@ -126,44 +129,49 @@ class TgBot(val LOGGER: Logger) {
     }
 
     private suspend fun handleUpdate(update: Update) {
-        if (update.message?.chat?.type != "group" && update.message?.chat?.type != "supergroup")
+        val msg = update.message ?: return
+        if (msg.chat.type != "group" && msg.chat.type != "supergroup") return
+        
+        val ctx = HandlerContext(update, msg, msg.chat)
+        
+        if (msg.text?.startsWith("/") == true) {
+            val args = msg.text.split(" ")
+            val cmd = if (args[0].contains("@")) {
+                val cmds = args[0].split("@")
+                if (cmds[1] != me?.username) return
+                cmds[0].substring(1)
+            } else args[0].substring(1)
+            
+            commandMap[cmd]?.invoke(this, ctx.copy(commandArgs = args))
             return
-        val ctx = HandlerContext(
-            update,
-            update.message,
-            update.message.chat,
-        )
-        update.message.let {
-            if (it.text?.startsWith("/") == true) {
-                val args = it.text.split(" ")
-                val cmd = if (args[0].contains("@")) {
-                    val cmds = args[0].split("@")
-                    if (cmds[1] != me!!.username) return
-                    cmds[0].substring(1)
-                } else args[0].substring(1)
-                
-                commandMap[cmd]?.invoke(this, ctx.copy(commandArgs = args))
-                return
-            }
-            onMessageHandler(ctx)
         }
+        onMessageHandler(ctx)
     }
 
     private fun onMessageHandler(ctx: HandlerContext) {
         val msg = ctx.message!!
         if (config.chatId != msg.chat.id) return
-        val txt = config.minecraftFormat.replace("%1\$s", msg.from?.rawUserMention()!!)
-        val msgs = txt.split("%2\$s")
+        
+        // ИСПРАВЛЕНО: Безопасное имя автора, чтобы избежать NullPointerException, если пишет канал/аноним
+        val authorName = msg.from?.rawUserMention() ?: msg.senderChat?.title ?: "Telegram User"
+        
+        // ОПТИМИЗАЦИЯ: Чистый и быстрый сбор форматированного сообщения для Майнкрафта
+        val formattedPattern = config.minecraftFormat.replace("%1\$s", authorName)
+        val parts = formattedPattern.split("%2\$s")
         
         val text = LiteralText("")
-        repeat(msgs.size - 1) { i ->
-            text.append(LiteralText(msgs[i]))
-            text.append(msg.toText(Bridge.CONFIG.messageTrim))
+        if (parts.size > 1) {
+            text.append(LiteralText(parts[0]))
+            text.append(msg.toText(config.messageTrim))
+            text.append(LiteralText(parts[1]))
+        } else {
+            text.append(msg.toText(config.messageTrim))
         }
-        text.append(LiteralText(msgs.last()))
 
-        Bridge.SERVER.execute {
-            Bridge.sendMessage(text)
+        if (::Bridge.SERVER.isInitialized) {
+            Bridge.SERVER.execute {
+                Bridge.sendMessage(text)
+            }
         }
     }
 
@@ -181,11 +189,11 @@ class TgBot(val LOGGER: Logger) {
                 }
             } catch (e: HttpException) {
                 e.response()?.errorBody()?.string()?.let {
-                    LOGGER.error(it)
-                    LOGGER.error(formatted)
+                    LOGGER.error("API Error: $it")
+                    LOGGER.error("Failed text: $formatted")
                 }
             } catch (e: Exception) {
-                LOGGER.error(e.message)
+                LOGGER.error("Network Error: ${e.message}")
             }
         }
     }

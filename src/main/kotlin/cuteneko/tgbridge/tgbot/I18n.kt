@@ -1,20 +1,20 @@
 package cuteneko.tgbridge.tgbot
 
 data class I18n(
-    // ОПТИМИЗАЦИЯ: Все var изменены на val для обеспечения потокобезопасности и иммутабельности данных
-    val reply: String = "[Replying to %1\$s: \"%2\$s\"] ",
-    val forwarded: String = "[Forwarded] ",
-    val forwardedFromUser: String = "Forwarded from user %s ",
-    val forwardedFromChannel: String = "Forwarded from channel %s ",
-    val forwardedFromGroup: String = "Forwarded from group %s ",
-    val photo: String = "[Photo] ",
-    val sticker: String = "[%sSticker] ",
-    val stickerFrom: String = "From sticker pack %s ",
-    val document: String = "[File %s] ",
-    val voice: String = "[Voice %ss] ",
-    val audio: String = "[Audio %ss] ",
-    val video: String = "[Video %ss] ",
-    val poll: String = "[Poll %s] ",
-    val message: String = "[Message] ",
-    val more: String = "[More]"
+    // ОПТИМИЗАЦИЯ: Все var изменены на val для потокобезопасности. Все строки переведены на русский язык.
+    val reply: String = "[Ответ на %1\$s: \"%2\$s\"] ",
+    val forwarded: String = "[Переслано] ",
+    val forwardedFromUser: String = "Переслано от пользователя %s ",
+    val forwardedFromChannel: String = "Переслано из канала %s ",
+    val forwardedFromGroup: String = "Переслано из группы %s ",
+    val photo: String = "[Фото] ",
+    val sticker: String = "[Стикер %s] ",
+    val stickerFrom: String = "Из набора стикеров %s ",
+    val document: String = "[Файл %s] ",
+    val voice: String = "[Голосовое сообщение %s с.] ",
+    val audio: String = "[Аудиозапись %s с.] ",
+    val video: String = "[Видеозапись %s с.] ",
+    val poll: String = "[Опрос: %s] ",
+    val message: String = "[Сообщение] ",
+    val more: String = "[Читать далее]"
 )

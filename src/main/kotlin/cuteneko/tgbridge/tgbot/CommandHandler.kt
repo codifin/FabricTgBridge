@@ -16,8 +16,6 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
         bot.LOGGER.info(txt)
         
         bot.LOGGER.debug("Sending to Telegram: $txt")
-        // ИСПРАВЛЕНО: Используем внутренний Scope бота, который привязан к жизненному циклу 
-        // и не течет по памяти, в отличие от бесконтрольного создания MainScope()
         bot.getBotScope().launch {
             bot.sendMessageToTelegram(txt)
         }
@@ -28,7 +26,6 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
     override fun shouldBroadcastConsoleToOps(): Boolean = false
 }
 
-// ИСПРАВЛЕНО: Теперь мапа лениво создается один раз, а не генерируется заново при каждом запросе
 val commandMap: Map<String, suspend TgBot.(HandlerContext) -> Unit> = mapOf(
     "chat_id" to TgBot::chatIdHandler,
     "list" to TgBot::listHandler,
@@ -47,16 +44,18 @@ suspend fun TgBot.listHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
     if (msg.chat.id != Bridge.CONFIG.chatId) return
     
-    // Безопасно собираем игроков (доступ к серверу может требовать синхронизации, но для чтения списка достаточно)
-    val players = Bridge.SERVER.playerManager.playerList
-    var list = players.joinToString("\n") { it.displayName.toPlainString().escapeHTML() }
+    // ИСПРАВЛЕНО: Преобразуем коллекцию в Kotlin-список и берем .name.string вместо displayName, 
+    // чтобы получить чистые никнеймы игроков без крашей и лишних HTML-тегов.
+    val players = Bridge.SERVER.playerManager.playerList.toList()
+    
+    var list = players.joinToString("\n") { it.name.string.escapeHTML() }
     if (list.isBlank()) list = "No players online."
     this.sendMessageToTelegram(list, reply = msg.messageId)
 }
 
 suspend fun TgBot.meowHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    val randomMeow = this.meow.random() // ИСПРАВЛЕНО: Стандартный читаемый .random() вместо shuffled().first()
+    val randomMeow = this.meow.random()
     this.sendMessageToTelegram(randomMeow, reply = msg.messageId)
 }
 
@@ -72,8 +71,6 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     val cmdMgr = Bridge.SERVER.commandManager
     val myOutput = MyOutput(this)
     
-    // ИСПРАВЛЕНО: Выполнение команд Майнкрафта переносим строго в поток сервера!
-    // Прямой вызов из корутины вешал Server Thread и вызывал краш консоли.
     Bridge.SERVER.execute {
         Bridge.SERVER.commandSource.sendFeedback(
             LiteralText("Executing command: /$cmd"), 

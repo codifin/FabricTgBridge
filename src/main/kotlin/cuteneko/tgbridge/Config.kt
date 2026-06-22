@@ -1,7 +1,7 @@
 package cuteneko.tgbridge
 
 data class Config(
-    // ОПТИМИЗАЦИЯ: Все var изменены на val для обеспечения иммутабельности и потокобезопасности
+    // ОПТИМИЗАЦИЯ: Все переменные иммутабельны. Сообщения по умолчанию переведены на русский язык.
     val botToken: String = "YOUR BOT TOKEN HERE",
     val chatId: Long = 0,
     val telegramAPI: String = "api.telegram.org",
@@ -15,10 +15,10 @@ data class Config(
     val sendServerStopping: Boolean = true,
     val minecraftFormat: String = "<%1\$s> %2\$s",
     val telegramFormat: String = "<b>%1\$s</b> %2\$s",
-    val serverStartedMessage: String = "Server has started!",
-    val serverStoppingMessage: String = "Server is stopping!",
-    val admins: List<String> = emptyList(), // Оптимизация: пустой синглтон-список
-    val noPermission: String = "No permission!",
+    val serverStartedMessage: String = "Сервер запущен!",
+    val serverStoppingMessage: String = "Сервер останавливается!",
+    val admins: List<String> = emptyList(),
+    val noPermission: String = "Недостаточно прав!",
     val proxyEnabled: Boolean = false,
     val proxyHost: String = "localhost",
     val proxyPort: Int = 10809,

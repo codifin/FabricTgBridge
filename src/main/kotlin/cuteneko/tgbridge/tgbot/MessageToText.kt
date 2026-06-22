@@ -10,22 +10,19 @@ import net.minecraft.text.Text
 import net.minecraft.text.LiteralText
 import net.minecraft.util.Formatting
 
-// ОПТИМИЗАЦИЯ: Получаем актуальный i18n динамически, чтобы работал reload конфига
 private val i18n get() = ConfigLoader.getI18n()
 
 fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
     val text = LiteralText("") 
 
     replyToMessage?.let {
-        // ОПТИМИЗАЦИЯ: Защита от бесконечной рекурсии в HoverEvent.
-        // Вместо вызова тяжелого .toText() строим плоский текст реплая.
-        val replyRawText = it.text ?: it.caption ?: "[Media]"
+        val replyRawText = it.text ?: it.caption ?: "[Медиа]"
         val replyClean = if (replyRawText.length > 20) "${replyRawText.take(20)}..." else replyRawText
 
         text.append(
             LiteralText(
                 i18n.reply.format(
-                    it.from?.rawUserMention() ?: "User",
+                    it.from?.rawUserMention() ?: "Пользователь", // ИСПРАВЛЕНО: Русская заглушка
                     replyClean
                 )
             ).setStyle(
@@ -39,7 +36,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
     forwardFrom?.let {
         val info = LiteralText("")
         info.append(i18n.forwardedFromUser.format(it.rawUserMention()))
-        it.username?.let { username -> info.append("\n$username") }
+        it.username?.let { username -> info.append("\n@$username") }
         text.append(
             LiteralText(i18n.forwarded)
                 .setStyle(
@@ -54,8 +51,8 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
         val info = LiteralText("")
         when (it.type) {
             "channel" -> info.append(i18n.forwardedFromChannel.format(it.title))
-            "group" -> info.append(i18n.forwardedFromGroup.format(it.title))
-            else -> {}
+            "group", "supergroup" -> info.append(i18n.forwardedFromGroup.format(it.title))
+            else -> info.append(i18n.forwarded) // ИСПРАВЛЕНО: Безопасный фоллбек для неизвестных типов
         }
         text.append(
             LiteralText(i18n.forwarded)
@@ -83,7 +80,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
                         .withHoverEvent(
                             HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
-                                LiteralText(i18n.stickerFrom.format(it.setName ?: "unknown"))
+                                LiteralText(i18n.stickerFrom.format(it.setName ?: "неизвестного"))
                             )
                         )
                 )
@@ -144,7 +141,6 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
 }
 
 private fun String.trimMessage(size: Int, showMore: Boolean = true): Text {
-    // ОПТИМИЗАЦИЯ: Обычный чистый быстрый реплейс без аллокаций тяжелых паттернов регулярных выражений
     val msg = this.replace('\n', ' ')
     val text = LiteralText("")
     
