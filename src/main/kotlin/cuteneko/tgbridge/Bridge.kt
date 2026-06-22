@@ -6,7 +6,6 @@ import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
-import net.fabricmc.fabric.api.message.v1.ServerMessageEvents // ДОБАВЛЕН ИМПОРТ СОБЫТИЙ ЧАТА
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
@@ -73,18 +72,7 @@ class Bridge : ModInitializer {
                 })
         }
 
-        // 1. Перехват сообщений из игрового чата в Telegram
-        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
-            if (CONFIG.sendChatMessage) {
-                val text = message.content.toPlainString(false)
-                val username = sender.name.string
-                bridgeScope.launch {
-                    BOT.sendMessageToTelegram(text, username)
-                }
-            }
-        }
-
-        // 2. Перехват входа игрока на сервер
+        // 1. Вход игрока
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
@@ -94,7 +82,7 @@ class Bridge : ModInitializer {
             }
         }
 
-        // 3. Перехват выхода игрока с сервера
+        // 2. Выход игрока
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
