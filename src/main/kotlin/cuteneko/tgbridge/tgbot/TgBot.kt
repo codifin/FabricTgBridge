@@ -152,10 +152,10 @@ class TgBot(val LOGGER: Logger) {
         val msg = ctx.message!!
         if (config.chatId != msg.chat.id) return
         
-        // ИСПРАВЛЕНО: Безопасное имя автора, чтобы избежать NullPointerException, если пишет канал/аноним
+        // Безопасное имя автора, чтобы избежать NullPointerException, если пишет канал/аноним
         val authorName = msg.from?.rawUserMention() ?: msg.senderChat?.title ?: "Telegram User"
         
-        // ОПТИМИЗАЦИЯ: Чистый и быстрый сбор форматированного сообщения для Майнкрафта
+        // Чистый и быстрый сбор форматированного сообщения для Майнкрафта
         val formattedPattern = config.minecraftFormat.replace("%1\$s", authorName)
         val parts = formattedPattern.split("%2\$s")
         
@@ -168,13 +168,17 @@ class TgBot(val LOGGER: Logger) {
             text.append(msg.toText(config.messageTrim))
         }
 
-        if (::Bridge.SERVER.isInitialized) {
-            Bridge.SERVER.execute {
+        // ИСПРАВЛЕНО: Безопасное обращение к lateinit свойству через try-catch 
+        // для обхода бага компилятора Котлина при обращении к чужому companion object
+        try {
+            val server = Bridge.SERVER
+            server.execute {
                 Bridge.sendMessage(text)
             }
+        } catch (e: UninitializedPropertyAccessException) {
+            // Сервер еще не запустился или уже выключен, игнорируем отправку в игровой чат
         }
     }
-
     suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
         withContext(Dispatchers.IO) {
             val formatted = username?.let {
