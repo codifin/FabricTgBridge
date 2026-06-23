@@ -22,7 +22,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
         text.append(
             LiteralText(
                 i18n.reply.format(
-                    it.from?.rawUserMention() ?: "Пользователь", // ИСПРАВЛЕНО: Русская заглушка
+                    it.from?.rawUserMention() ?: "Пользователь",
                     replyClean
                 )
             ).setStyle(
@@ -52,7 +52,7 @@ fun Message.toText(trim: Int = 0, showMore: Boolean = true): Text {
         when (it.type) {
             "channel" -> info.append(i18n.forwardedFromChannel.format(it.title))
             "group", "supergroup" -> info.append(i18n.forwardedFromGroup.format(it.title))
-            else -> info.append(i18n.forwarded) // ИСПРАВЛЕНО: Безопасный фоллбек для неизвестных типов
+            else -> info.append(i18n.forwarded)
         }
         text.append(
             LiteralText(i18n.forwarded)

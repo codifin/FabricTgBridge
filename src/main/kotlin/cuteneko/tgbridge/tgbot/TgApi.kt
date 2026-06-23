@@ -11,27 +11,25 @@ interface TgApi {
         @Query("drop_pending_updates") dropPendingUpdates: Boolean
     ): TgResponse<Boolean>
 
-    // ОПТИМИЗАЦИЯ: Изменено на POST, чтобы длинные сообщения из чата Майнкрафта 
-    // не обрезались сервером и не вызывали HTTP 414 URI Too Long / ошибки сети.
     @POST("sendMessage?parse_mode=HTML")
     suspend fun sendMessage(
         @Query("chat_id") chatId: Long,
         @Query("text") text: String,
-        @Query("reply_to_message_id") replyToMessageId: Long? = null,
+        @Query("reply_to_message_id") replyToMessageId: Long? = null
     ): TgResponse<Message>
 
     @POST("sendMessage")
     suspend fun sendMessageWithoutParse(
         @Query("chat_id") chatId: Long,
         @Query("text") text: String,
-        @Query("reply_to_message_id") replyToMessageId: Long? = null,
+        @Query("reply_to_message_id") replyToMessageId: Long? = null
     ): TgResponse<Message>
 
     @GET("getUpdates")
     suspend fun getUpdates(
         @Query("offset") offset: Long,
         @Query("limit") limit: Int = 100,
-        @Query("timeout") timeout: Int = 0,
+        @Query("timeout") timeout: Int = 0
     ): TgResponse<List<Update>>
 
     @GET("getMe")
@@ -39,6 +37,6 @@ interface TgApi {
 
     @POST("setMyCommands")
     suspend fun setMyCommands(
-        @Body commands: SetCommands,
+        @Body commands: SetCommands
     ): TgResponse<Boolean>
 }

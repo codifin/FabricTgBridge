@@ -17,7 +17,6 @@ import java.net.Proxy
 import java.time.Duration
 
 class TgBot(val LOGGER: Logger) {
-    // ОПТИМИЗАЦИЯ: Всегда берем актуальный конфиг, чтобы избежать утечек старых данных при reload
     private val config get() = Bridge.CONFIG
     
     private val proxy get() = if (!config.proxyEnabled) Proxy.NO_PROXY else Proxy(Proxy.Type.HTTP, InetSocketAddress(config.proxyHost, config.proxyPort))
@@ -152,10 +151,8 @@ class TgBot(val LOGGER: Logger) {
         val msg = ctx.message!!
         if (config.chatId != msg.chat.id) return
         
-        // Безопасное имя автора, чтобы избежать NullPointerException, если пишет канал/аноним
         val authorName = msg.from?.rawUserMention() ?: msg.senderChat?.title ?: "Telegram User"
         
-        // Чистый и быстрый сбор форматированного сообщения для Майнкрафта
         val formattedPattern = config.minecraftFormat.replace("%1\$s", authorName)
         val parts = formattedPattern.split("%2\$s")
         
@@ -168,17 +165,15 @@ class TgBot(val LOGGER: Logger) {
             text.append(msg.toText(config.messageTrim))
         }
 
-        // ИСПРАВЛЕНО: Безопасное обращение к lateinit свойству через try-catch 
-        // для обхода бага компилятора Котлина при обращении к чужому companion object
         try {
             val server = Bridge.SERVER
             server.execute {
                 Bridge.sendMessage(text)
             }
         } catch (e: UninitializedPropertyAccessException) {
-            // Сервер еще не запустился или уже выключен, игнорируем отправку в игровой чат
         }
     }
+
     suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
         withContext(Dispatchers.IO) {
             val formatted = username?.let {

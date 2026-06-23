@@ -6,18 +6,18 @@ data class HandlerContext(
     val update: Update,
     val message: Message?,
     val chat: Chat?,
-    val commandArgs: List<String> = emptyList(), // Оптимизация: пустой синглтон вместо listOf()
+    val commandArgs: List<String> = emptyList()
 )
 
 data class TgResponse<T>(
     val ok: Boolean,
     val result: T?,
-    val description: String?,
+    val description: String?
 )
 
 data class Update(
     @Name("update_id") val updateId: Long,
-    val message: Message? = null,
+    val message: Message? = null
 )
 
 data class User(
@@ -26,7 +26,7 @@ data class User(
     @Name("first_name") val firstName: String,
     @Name("last_name") val lastName: String? = null,
     @Name("username") val username: String? = null,
-    @Name("language_code") val languageCode: String? = null,
+    @Name("language_code") val languageCode: String? = null
 )
 
 data class Chat(
@@ -35,7 +35,7 @@ data class Chat(
     val title: String = "",
     val username: String? = null,
     @Name("first_name") val firstName: String? = null,
-    @Name("last_name") val lastName: String? = null,
+    @Name("last_name") val lastName: String? = null
 )
 
 data class Message(
@@ -48,7 +48,7 @@ data class Message(
     val chat: Chat,
     @Name("reply_to_message") val replyToMessage: Message? = null,
     val text: String? = null,
-    val photo: List<PhotoSize>? = null, // Оптимизация: null по умолчанию лучше, чем создание пустого списка при парсинге текста
+    val photo: List<PhotoSize>? = null,
     val sticker: Sticker? = null,
     val video: Media? = null,
     val voice: Media? = null,
@@ -85,5 +85,5 @@ data class BotCommand(
 )
 
 data class SetCommands(
-    val commands: List<BotCommand> // Оптимизация: List в Kotlin предпочтительнее и легче кастуется из коллекций, чем Array
+    val commands: List<BotCommand>
 )

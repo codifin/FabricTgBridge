@@ -31,14 +31,12 @@ object ConfigLoader {
 
     fun save(config: Config) {
         val json = gson.toJson(config)
-        // ИСПРАВЛЕНО: Явное указание UTF_8 для предотвращения "кракозябр" в Windows-консолях
         configFile.writeText(json, Charsets.UTF_8)
     }
 
     fun getLang(): Map<String, String> {
         if (!langFile.exists()) {
             val stream = javaClass.classLoader.getResourceAsStream("assets/lang.json")
-            // ИСПРАВЛЕНО: Безопасное чтение встроенного ресурса в UTF-8
             InputStreamReader(stream!!, Charsets.UTF_8).use { reader ->
                 langFile.writeText(reader.readText(), Charsets.UTF_8)
             }
@@ -51,7 +49,6 @@ object ConfigLoader {
 
     fun getI18n(): I18n {
         if (!i18nFile.exists()) {
-            // ИСПРАВЛЕНО: Генерация дефолтного русского i18n.json строго в UTF-8
             i18nFile.writeText(gson.toJson(I18n()), Charsets.UTF_8)
         }
         return i18nFile.bufferedReader(Charsets.UTF_8).use { reader ->

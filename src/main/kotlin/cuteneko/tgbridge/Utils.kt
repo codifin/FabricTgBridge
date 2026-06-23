@@ -10,7 +10,6 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
     
     val builder = StringBuilder()
 
-    // 1. Парсим текст текущего компонента
     val currentText = when (this) {
         is LiteralText -> this.rawString.escapeHTML()
         is TranslatableText -> {
@@ -18,9 +17,6 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
             val key = this.key
             
             if (!lang.containsKey(key)) {
-                // ИСПРАВЛЕНО: Если это системный ключ чата Майнкрафта (например, chat.type.text),
-                // и его нет в нашем lang.json, мы берём аргументы (ник и текст) и склеиваем их,
-                // вместо того чтобы просто вернуть пустой технический ключ.
                 if (this.args.isNotEmpty()) {
                     this.args.map { 
                         if (it is Text) it.toPlainString(false) else it.toString() 
@@ -39,7 +35,6 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
     }
     builder.append(currentText)
 
-    // 2. Добавляем всех детей БЕЗ форматирования (чтобы теги не дублировались внутри друг друга)
     for (sibling in siblings) {
         builder.append(sibling.toPlainString(false))
     }
@@ -47,7 +42,6 @@ fun Text?.toPlainString(formatted: Boolean = true): String {
     val result = builder.toString()
     if (!formatted) return result
 
-    // 3. ИСПРАВЛЕНО: Накладываем HTML-теги один раз на весь готовый компонент
     val style = this.style
     val prefix = StringBuilder()
     val suffix = StringBuilder()

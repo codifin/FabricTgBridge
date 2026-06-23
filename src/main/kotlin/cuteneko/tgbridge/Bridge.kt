@@ -23,20 +23,20 @@ class Bridge : ModInitializer {
     private val bridgeScope = CoroutineScope(Dispatchers.Default + bridgeJob)
 
     override fun onInitialize() {
-        LOGGER.info("Telegram bridge loaded!")
+        LOGGER.info("Telegram мод успешно загружен!")
         INSTANCE = this
         CONFIG = ConfigLoader.load()
         ConfigLoader.save(CONFIG)
 
         if (CONFIG.botToken == "YOUR BOT TOKEN HERE") {
-            LOGGER.info("Please edit config file!")
+            LOGGER.info("Пожалуйста, заполните конфигурационный файл!")
             return
         }
 
         try {
             LANG = ConfigLoader.getLang()
         } catch (e: FileNotFoundException) {
-            LOGGER.error("lang.json not found! Read the document for more info")
+            LOGGER.error("Файл lang.json не найден!")
             return
         }
 
@@ -44,16 +44,15 @@ class Bridge : ModInitializer {
         bridgeScope.launch { BOT.startPolling() }
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _ ->
-            // Наша команда перезапуска
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_reload")
                 .requires { it.hasPermissionLevel(4) }
                 .executes {
                     if (RELOADING) {
-                        it.source.sendFeedback(LiteralText("A reload is already in progress!").formatted(Formatting.RED), false)
+                        it.source.sendFeedback(LiteralText("Перезапуск уже выполняется!").formatted(Formatting.RED), false)
                         return@executes 1
                     }
                     RELOADING = true
-                    it.source.sendFeedback(LiteralText("Reloading!"), false)
+                    it.source.sendFeedback(LiteralText("Перезапуск моста..."), false)
                     CONFIG = ConfigLoader.load()
                     
                     bridgeScope.launch {
@@ -61,9 +60,9 @@ class Bridge : ModInitializer {
                             BOT.stop()
                             BOT = TgBot(LOGGER)
                             BOT.startPolling()
-                            it.source.sendFeedback(LiteralText("Reloaded!"), false)
+                            it.source.sendFeedback(LiteralText("Мост успешно перезапущен!"), false)
                         } catch (e: Exception) {
-                            it.source.sendFeedback(LiteralText("Error occurred!").formatted(Formatting.RED), false)
+                            it.source.sendFeedback(LiteralText("Произошла ошибка при перезапуске!").formatted(Formatting.RED), false)
                             e.message?.let { msg -> it.source.sendFeedback(LiteralText(msg), false) }
                         } finally {
                             RELOADING = false
@@ -71,25 +70,8 @@ class Bridge : ModInitializer {
                     }
                     0
                 })
-
-            // ХУК ЧАТА: Перехватываем вообще любой ввод в консоль/чат на уровне командного процессора
-            dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("say")
-                .executes { context ->
-                    if (CONFIG.sendChatMessage) {
-                        val source = context.source
-                        val text = context.input.removePrefix("say ").trim()
-                        val username = try { source.player.name.string } catch(e: Exception) { "Server" }
-                        
-                        bridgeScope.launch {
-                            try { Bridge.BOT.sendMessageToTelegram(text, username) } catch(_: Exception) {}
-                        }
-                    }
-                    0
-                }
-            )
         }
 
-        // Вход игрока
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
@@ -99,7 +81,6 @@ class Bridge : ModInitializer {
             }
         }
 
-        // Выход игрока
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
@@ -109,26 +90,10 @@ class Bridge : ModInitializer {
             }
         }
 
-        // Старт сервера
         ServerLifecycleEvents.SERVER_STARTED.register {
             SERVER = it
-            
-            // Альтернативный глобальный перехватчик сообщений чата через встроенный логгер Майнкрафта
-            // Каждый раз, когда в чате появляется сообщение, мы дублируем его в ТГ
-            it.commandManager.dispatcher.register(
-                LiteralArgumentBuilder.literal<ServerCommandSource?>("me")
-                    .executes { ctx ->
-                        val text = ctx.input.removePrefix("me ").trim()
-                        val username = try { ctx.source.player.name.string } catch(e: Exception) { "Server" }
-                        bridgeScope.launch {
-                            try { BOT.sendMessageToTelegram("* $username $text") } catch(_: Exception) {}
-                        }
-                        0
-                    }
-            )
         }
 
-        // Остановка сервера
         ServerLifecycleEvents.SERVER_STOPPING.register {
             runBlocking {
                 try {
@@ -139,7 +104,7 @@ class Bridge : ModInitializer {
                     }
                     BOT.stop()
                 } catch (e: Exception) {
-                    LOGGER.error("Error while stopping bot: ${e.message}")
+                    LOGGER.error("Ошибка при остановке бота: ${e.message}")
                 } finally {
                     bridgeJob.cancelChildren()
                     bridgeJob.cancel()
@@ -159,6 +124,17 @@ class Bridge : ModInitializer {
         lateinit var BOT: TgBot
         var RELOADING: Boolean = false
         
+        fun onPlayerChat(username: String, message: String) {
+            if (!::BOT.isInitialized) return
+            if (CONFIG.sendChatMessage) {
+                BOT.getBotScope().launch {
+                    try {
+                        BOT.sendMessageToTelegram(message, username)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
         fun sendMessage(text: Text?) {
             if (text == null) return
             if (!::SERVER.isInitialized) return

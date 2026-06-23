@@ -1,7 +1,6 @@
 package cuteneko.tgbridge.tgbot
 
 data class I18n(
-    // ОПТИМИЗАЦИЯ: Все var изменены на val для потокобезопасности. Все строки переведены на русский язык.
     val reply: String = "[Ответ на %1\$s: \"%2\$s\"] ",
     val forwarded: String = "[Переслано] ",
     val forwardedFromUser: String = "Переслано от пользователя %s ",

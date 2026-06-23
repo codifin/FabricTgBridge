@@ -15,7 +15,6 @@ class MyOutput(private val bot: TgBot) : CommandOutput {
         if (txt.isBlank()) return
         bot.LOGGER.info(txt)
         
-        bot.LOGGER.debug("Sending to Telegram: $txt")
         bot.getBotScope().launch {
             bot.sendMessageToTelegram(txt)
         }
@@ -36,7 +35,7 @@ val commandMap: Map<String, suspend TgBot.(HandlerContext) -> Unit> = mapOf(
 suspend fun TgBot.chatIdHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
     val chatId = msg.chat.id
-    val text = "Chat ID: <code>$chatId</code>."
+    val text = "ID чата: <code>$chatId</code>"
     this.sendMessageToTelegram(text, reply = msg.messageId)
 }
 
@@ -44,12 +43,10 @@ suspend fun TgBot.listHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
     if (msg.chat.id != Bridge.CONFIG.chatId) return
     
-    // ИСПРАВЛЕНО: Преобразуем коллекцию в Kotlin-список и берем .name.string вместо displayName, 
-    // чтобы получить чистые никнеймы игроков без крашей и лишних HTML-тегов.
     val players = Bridge.SERVER.playerManager.playerList.toList()
     
     var list = players.joinToString("\n") { it.name.string.escapeHTML() }
-    if (list.isBlank()) list = "No players online."
+    if (list.isBlank()) list = "Нет игроков онлайн."
     this.sendMessageToTelegram(list, reply = msg.messageId)
 }
 
@@ -73,7 +70,7 @@ suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     
     Bridge.SERVER.execute {
         Bridge.SERVER.commandSource.sendFeedback(
-            LiteralText("Executing command: /$cmd"), 
+            LiteralText("Выполнение команды: /$cmd"), 
             false
         )
         val source = Bridge.SERVER.commandSource.withOutput(myOutput)

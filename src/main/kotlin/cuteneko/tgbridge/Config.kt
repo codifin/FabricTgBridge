@@ -1,7 +1,6 @@
 package cuteneko.tgbridge
 
 data class Config(
-    // ОПТИМИЗАЦИЯ: Все переменные иммутабельны. Сообщения по умолчанию переведены на русский язык.
     val botToken: String = "YOUR BOT TOKEN HERE",
     val chatId: Long = 0,
     val telegramAPI: String = "api.telegram.org",
@@ -21,5 +20,5 @@ data class Config(
     val noPermission: String = "Недостаточно прав!",
     val proxyEnabled: Boolean = false,
     val proxyHost: String = "localhost",
-    val proxyPort: Int = 10809,
+    val proxyPort: Int = 10809
 )
