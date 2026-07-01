@@ -93,7 +93,7 @@ remapJar {
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = "17"
-        languageVersion = "1.6" // Синхронизируем с версией Kotlin 1.6.21
-        apiVersion = "1.6"      // Позволяет компилятору правильно записать метаданные
+        languageVersion = "1.9" // Выставляем 1.9 в соответствии с плагином
+        apiVersion = "1.9"
     }
 }
