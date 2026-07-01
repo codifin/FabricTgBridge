@@ -93,7 +93,7 @@ remapJar {
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = "17"
-        languageVersion = "1.9" // Выставляем 1.9 в соответствии с плагином
-        apiVersion = "1.9"
+        languageVersion = "1.6" // Переводим компилятор в режим совместимости 1.6
+        apiVersion = "1.6"      // Позволяет записать метаданные, которые поймет старый адаптер и Loom
     }
 }
