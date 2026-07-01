@@ -3,8 +3,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // Принудительно обновляем библиотеку метаданных для самого Gradle/Loom
-        buildscriptApi 'org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.6.0'
+        // Правильный синтаксис для внедрения зависимости в сам процесс сборки Gradle
+        classpath 'org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.6.0'
     }
 }
 
