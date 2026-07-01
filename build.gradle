@@ -13,8 +13,6 @@ group = project.maven_group
 
 repositories {
     mavenCentral()
-    // Добавляем репозиторий JitPack для скачивания обновленного адаптера Котлина
-    maven { url 'https://jitpack.io' }
 }
 
 configurations {
@@ -23,12 +21,19 @@ configurations {
 }
 
 dependencies {
+    // Базовый Майнкрафт и маппинги
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     
+    // Зависимости загрузчика и Fabric API
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    modImplementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
+
+    // =================================================================
+    // Вшиваем Kotlin напрямую в наш мод, минуя багнутый fabric-language-kotlin
+    // =================================================================
+    shadow "org.jetbrains.kotlin:kotlin-stdlib:${project.kotlin_version}"
+    shadow "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
 
     // Зависимости Telegram Бота
     shadow 'com.squareup.retrofit2:retrofit:2.9.0'
@@ -70,6 +75,10 @@ jar {
 shadowJar {
     configurations = [project.configurations.shadow]
     archiveClassifier.set('shadow-raw')
+    
+    // Защищаем стандартную библиотеку Kotlin от конфликтов с другими модами
+    relocate 'kotlin', 'cuteneko.tgbridge.shadow.kotlin'
+    relocate 'kotlinx.coroutines', 'cuteneko.tgbridge.shadow.coroutines'
 }
 
 remapJar {
@@ -81,7 +90,7 @@ remapJar {
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = "17"
-        languageVersion = "1.9" // Переводим на полноценный 1.9
+        languageVersion = "1.9"
         apiVersion = "1.9"
     }
 }
