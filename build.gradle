@@ -1,3 +1,13 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        // Принудительно обновляем библиотеку метаданных для самого Gradle/Loom
+        buildscriptApi 'org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.6.0'
+    }
+}
+
 plugins {
     id 'fabric-loom' version '1.4-SNAPSHOT' // Используем стабильную версию для 1.18.2, совместимую с Gradle 8.x
     id 'org.jetbrains.kotlin.jvm' version '1.9.22'
