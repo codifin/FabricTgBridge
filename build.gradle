@@ -1,16 +1,6 @@
-buildscript {
-    repositories {
-        mavenCentral()
-    }
-    dependencies {
-        // Правильный синтаксис для внедрения зависимости в сам процесс сборки Gradle
-        classpath 'org.jetbrains.kotlinx:kotlinx-metadata-jvm:0.6.0'
-    }
-}
-
 plugins {
-    id 'fabric-loom' version '1.4-SNAPSHOT' // Используем стабильную версию для 1.18.2, совместимую с Gradle 8.x
-    id 'org.jetbrains.kotlin.jvm' version '1.9.22'
+    id 'fabric-loom' version '1.4-SNAPSHOT'
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
@@ -23,43 +13,33 @@ group = project.maven_group
 
 repositories {
     mavenCentral()
+    // Добавляем репозиторий JitPack для скачивания обновленного адаптера Котлина
+    maven { url 'https://jitpack.io' }
 }
 
-// Конфигурация для библиотек, которые уйдут в Shadow
 configurations {
     shadow
     implementation.extendsFrom shadow
 }
 
 dependencies {
-    // Базовые зависимости Minecraft и маппинги Yarn
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     
-    // Зависимости Fabric Loader и Fabric API
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    
-    // Поддержка языка Kotlin в Fabric
     modImplementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
 
-    // =================================================================
-    // Библиотеки Telegram Бота (упаковываем через конфигурацию shadow)
-    // =================================================================
-    
-    // Retrofit
+    // Зависимости Telegram Бота
     shadow 'com.squareup.retrofit2:retrofit:2.9.0'
     include 'com.squareup.retrofit2:retrofit:2.9.0'
 
-    // Конвертер Gson для Retrofit
     shadow 'com.squareup.retrofit2:converter-gson:2.9.0'
     include 'com.squareup.retrofit2:converter-gson:2.9.0'
 
-    // OkHttp
     shadow 'com.squareup.okhttp3:okhttp:4.12.0'
     include 'com.squareup.okhttp3:okhttp:4.12.0'
 
-    // Okio
     shadow 'com.squareup.okio:okio:3.9.0'
     include 'com.squareup.okio:okio:3.9.0'
 }
@@ -72,7 +52,6 @@ processResources {
     }
 }
 
-// Важно для компиляции Java-миксинов в Котлин проекте
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     it.options.release = 17
@@ -88,22 +67,21 @@ jar {
     }
 }
 
-// Настройка ShadowJar для правильного перемаппинга сторонних библиотек
 shadowJar {
     configurations = [project.configurations.shadow]
-    archiveClassifier.set('shadow-raw') // Даем временное имя до ремаппинга
+    archiveClassifier.set('shadow-raw')
 }
 
 remapJar {
     dependsOn shadowJar
     inputFile = shadowJar.archiveFile
-    archiveClassifier.set('') // Финальный файл будет без суффиксов, чистый .jar
+    archiveClassifier.set('')
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = "17"
-        languageVersion = "1.6" // Переводим компилятор в режим совместимости 1.6
-        apiVersion = "1.6"      // Позволяет записать метаданные, которые поймет старый адаптер и Loom
+        languageVersion = "1.9" // Переводим на полноценный 1.9
+        apiVersion = "1.9"
     }
 }
