@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "cuteneko.tgbridge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [],
+  "server": [
+    "ServerPlayNetworkHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
