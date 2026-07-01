@@ -15,6 +15,20 @@ repositories {
     mavenCentral()
 }
 
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+        kotlin {
+            srcDirs = ['src/main/kotlin']
+        }
+        resources {
+            srcDirs = ['src/main/resources']
+        }
+    }
+}
+
 configurations {
     shadow
     implementation.extendsFrom shadow
@@ -76,7 +90,9 @@ shadowJar {
     configurations = [project.configurations.shadow]
     archiveClassifier.set('shadow-raw')
     
-    // Защищаем стандарку Kotlin от конфликтов с другими модами
+    // Подтягиваем скомпилированные классы Котлина, Джавы и файлы ресурсов (миксины, json)
+    from sourceSets.main.output
+    
     relocate 'kotlin', 'cuteneko.tgbridge.shadow.kotlin'
     relocate 'kotlinx.coroutines', 'cuteneko.tgbridge.shadow.coroutines'
 }
