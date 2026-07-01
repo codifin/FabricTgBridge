@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents // Импортируем событие сообщений
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
@@ -72,12 +73,22 @@ class Bridge : ModInitializer {
                 })
         }
 
+        // ==========================================
+        // РЕГИСТРАЦИЯ СОБЫТИЯ ЧАТА ИЗ FABRIC API
+        // ==========================================
+        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
+            val username = sender.name.string
+            val textContent = message.content.string
+            
+            // Вызываем твой готовый метод
+            onPlayerChat(username, textContent)
+        }
+
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    // Русифицировано сообщение о входе игрока
-                    try { BOT.sendMessageToTelegram("<b>$username</b> зашёл на сервер.") } catch(_: Exception) {}
+                    try { BOT.sendMessageToTelegram("<b>$username</b> зашёл на server.") } catch(_: Exception) {}
                 }
             }
         }
@@ -86,7 +97,6 @@ class Bridge : ModInitializer {
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    // Русифицировано сообщение о выходе игрока
                     try { BOT.sendMessageToTelegram("<b>$username</b> покинул сервер.") } catch(_: Exception) {}
                 }
             }
