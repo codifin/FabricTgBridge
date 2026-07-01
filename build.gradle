@@ -76,7 +76,7 @@ shadowJar {
     configurations = [project.configurations.shadow]
     archiveClassifier.set('shadow-raw')
     
-    // Защищаем стандартную библиотеку Kotlin от конфликтов с другими модами
+    // Защищаем стандарку Kotlin от конфликтов с другими модами
     relocate 'kotlin', 'cuteneko.tgbridge.shadow.kotlin'
     relocate 'kotlinx.coroutines', 'cuteneko.tgbridge.shadow.coroutines'
 }
