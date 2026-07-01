@@ -45,8 +45,16 @@ suspend fun TgBot.listHandler(ctx: HandlerContext) {
     
     val players = Bridge.SERVER.playerManager.playerList.toList()
     
-    var list = players.joinToString("\n") { it.name.string.escapeHTML() }
-    if (list.isBlank()) list = "Нет игроков онлайн."
+    // Русификация: Список игроков онлайн
+    val listHeader = "<b>Игроки онлайн (${players.size}):</b>\n"
+    var list = players.joinToString("\n") { "• ${it.name.string.escapeHTML()}" }
+    
+    if (list.isBlank()) {
+        list = "На сервере нет игроков онлайн."
+    } else {
+        list = listHeader + list
+    }
+    
     this.sendMessageToTelegram(list, reply = msg.messageId)
 }
 
@@ -58,19 +66,24 @@ suspend fun TgBot.meowHandler(ctx: HandlerContext) {
 
 suspend fun TgBot.commandHandler(ctx: HandlerContext) {
     val msg = ctx.message!!
-    var cmd = ctx.commandArgs.subList(1, ctx.commandArgs.size).joinToString(" ")
     
     if (!Bridge.CONFIG.admins.contains(msg.from?.username)) {
         this.sendMessageToTelegram(Bridge.CONFIG.noPermission, reply = msg.messageId)
         return
     }
+
+    if (ctx.commandArgs.size <= 1) {
+        this.sendMessageToTelegram("Вы не указали команду! Пример: <code>/cmd list</code>", reply = msg.messageId)
+        return
+    }
     
+    var cmd = ctx.commandArgs.subList(1, ctx.commandArgs.size).joinToString(" ")
     val cmdMgr = Bridge.SERVER.commandManager
     val myOutput = MyOutput(this)
     
     Bridge.SERVER.execute {
         Bridge.SERVER.commandSource.sendFeedback(
-            LiteralText("Выполнение команды: /$cmd"), 
+            LiteralText("Выполнение консольной команды: /$cmd"), 
             false
         )
         val source = Bridge.SERVER.commandSource.withOutput(myOutput)

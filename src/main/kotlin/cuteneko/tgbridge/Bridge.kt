@@ -23,20 +23,20 @@ class Bridge : ModInitializer {
     private val bridgeScope = CoroutineScope(Dispatchers.Default + bridgeJob)
 
     override fun onInitialize() {
-        LOGGER.info("Telegram мод успешно загружен!")
+        LOGGER.info("Telegram-мост: Мод успешно загружен!")
         INSTANCE = this
         CONFIG = ConfigLoader.load()
         ConfigLoader.save(CONFIG)
 
         if (CONFIG.botToken == "YOUR BOT TOKEN HERE") {
-            LOGGER.info("Пожалуйста, заполните конфигурационный файл!")
+            LOGGER.warn("Telegram-мост: Пожалуйста, заполните токен бота в конфигурационном файле!")
             return
         }
 
         try {
             LANG = ConfigLoader.getLang()
         } catch (e: FileNotFoundException) {
-            LOGGER.error("Файл lang.json не найден!")
+            LOGGER.error("Telegram-мост: Файл локализации lang.json не найден!")
             return
         }
 
@@ -48,11 +48,11 @@ class Bridge : ModInitializer {
                 .requires { it.hasPermissionLevel(4) }
                 .executes {
                     if (RELOADING) {
-                        it.source.sendFeedback(LiteralText("Перезапуск уже выполняется!").formatted(Formatting.RED), false)
+                        it.source.sendFeedback(LiteralText("Перезапуск моста уже выполняется!").formatted(Formatting.RED), false)
                         return@executes 1
                     }
                     RELOADING = true
-                    it.source.sendFeedback(LiteralText("Перезапуск моста..."), false)
+                    it.source.sendFeedback(LiteralText("Перезапуск Telegram-моста...").formatted(Formatting.YELLOW), false)
                     CONFIG = ConfigLoader.load()
                     
                     bridgeScope.launch {
@@ -60,9 +60,9 @@ class Bridge : ModInitializer {
                             BOT.stop()
                             BOT = TgBot(LOGGER)
                             BOT.startPolling()
-                            it.source.sendFeedback(LiteralText("Мост успешно перезапущен!"), false)
+                            it.source.sendFeedback(LiteralText("Telegram-мост успешно перезапущен!").formatted(Formatting.GREEN), false)
                         } catch (e: Exception) {
-                            it.source.sendFeedback(LiteralText("Произошла ошибка при перезапуске!").formatted(Formatting.RED), false)
+                            it.source.sendFeedback(LiteralText("Произошла ошибка при перезапуске моста!").formatted(Formatting.RED), false)
                             e.message?.let { msg -> it.source.sendFeedback(LiteralText(msg), false) }
                         } finally {
                             RELOADING = false
@@ -76,7 +76,8 @@ class Bridge : ModInitializer {
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    try { BOT.sendMessageToTelegram("$username вошел в игру.") } catch(_: Exception) {}
+                    // Русифицировано сообщение о входе игрока
+                    try { BOT.sendMessageToTelegram("<b>$username</b> зашёл на сервер.") } catch(_: Exception) {}
                 }
             }
         }
@@ -85,7 +86,8 @@ class Bridge : ModInitializer {
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    try { BOT.sendMessageToTelegram("$username покинул игру.") } catch(_: Exception) {}
+                    // Русифицировано сообщение о выходе игрока
+                    try { BOT.sendMessageToTelegram("<b>$username</b> покинул сервер.") } catch(_: Exception) {}
                 }
             }
         }
@@ -104,7 +106,7 @@ class Bridge : ModInitializer {
                     }
                     BOT.stop()
                 } catch (e: Exception) {
-                    LOGGER.error("Ошибка при остановке бота: ${e.message}")
+                    LOGGER.error("Ошибка при остановке Telegram-бота: ${e.message}")
                 } finally {
                     bridgeJob.cancelChildren()
                     bridgeJob.cancel()

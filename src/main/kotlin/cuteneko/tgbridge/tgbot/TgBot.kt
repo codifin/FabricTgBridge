@@ -47,7 +47,7 @@ class TgBot(val LOGGER: Logger) {
     private var currentOffset: Long = -1
     private var me: User? = null
 
-    val meow = arrayOf("meow~", "mew!", "purr...")
+    val meow = arrayOf("мяу~", "мур!", "фрр...") // Русифицировано мяуканье :)
 
     fun getBotScope(): CoroutineScope = botScope
 
@@ -64,7 +64,7 @@ class TgBot(val LOGGER: Logger) {
             api.deleteWebhook(true)
         } catch (e: HttpException) {
             e.response()?.errorBody()?.string()?.let {
-                LOGGER.error(it)
+                LOGGER.error("Ошибка Telegram API при инициализации: $it")
             }
         }
     }
@@ -107,7 +107,7 @@ class TgBot(val LOGGER: Logger) {
                 when (e) {
                     is CancellationException -> break@loop
                     else -> {
-                        Bridge.LOGGER.error("Ошибка поллинга: ${e.message}")
+                        Bridge.LOGGER.error("Ошибка получения обновлений (поллинг): ${e.message}")
                         delay(2000)
                         continue@loop
                     }
@@ -151,7 +151,8 @@ class TgBot(val LOGGER: Logger) {
         val msg = ctx.message!!
         if (config.chatId != msg.chat.id) return
         
-        val authorName = msg.from?.rawUserMention() ?: msg.senderChat?.title ?: "Telegram User"
+        // Русифицировано дефолтное имя
+        val authorName = msg.from?.rawUserMention() ?: msg.senderChat?.title ?: "Пользователь Telegram"
         
         val formattedPattern = config.minecraftFormat.replace("%1\$s", authorName)
         val parts = formattedPattern.split("%2\$s")
@@ -188,11 +189,11 @@ class TgBot(val LOGGER: Logger) {
                 }
             } catch (e: HttpException) {
                 e.response()?.errorBody()?.string()?.let {
-                    LOGGER.error("API Error: $it")
-                    LOGGER.error("Failed text: $formatted")
+                    LOGGER.error("Ошибка Telegram API: $it")
+                    LOGGER.error("Текст, который не удалось отправить: $formatted")
                 }
             } catch (e: Exception) {
-                LOGGER.error("Network Error: ${e.message}")
+                LOGGER.error("Сетевая ошибка при отправке в Telegram: ${e.message}")
             }
         }
     }
@@ -200,14 +201,14 @@ class TgBot(val LOGGER: Logger) {
     private suspend fun sendHtmlMessage(formatted: String, reply: Long?) {
         val response = api.sendMessage(config.chatId, formatted, reply)
         if (!response.ok) {
-            LOGGER.error(response.description ?: "Unknown API error")
+            LOGGER.error(response.description ?: "Неизвестная ошибка API")
         }
     }
 
     private suspend fun sendPlainMessage(formatted: String, reply: Long?) {
         val response = api.sendMessageWithoutParse(config.chatId, formatted, reply)
         if (!response.ok) {
-            LOGGER.error(response.description ?: "Unknown API error")
+            LOGGER.error(response.description ?: "Неизвестная ошибка API")
         }
     }
 }
