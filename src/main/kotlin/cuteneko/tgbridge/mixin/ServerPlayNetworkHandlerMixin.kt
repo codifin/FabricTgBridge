@@ -13,11 +13,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo
 @Mixin(ServerPlayNetworkHandler::class)
 class ServerPlayNetworkHandlerMixin {
 
-    @Shadow
+    // aliases указывает промежуточное имя поля для сборки без refMap
+    @Shadow(aliases = ["field_14115", "player"])
     lateinit var player: ServerPlayerEntity
 
     @Inject(
-        method = ["onChatGameMessage"], // Маппинг Yarn для 1.18.2 сервера
+        // method содержит и читаемое имя, и обфусцированное method_31286
+        method = ["onChatGameMessage", "method_31286"], 
         at = [At(
             value = "INVOKE",
             target = "Lnet/minecraft/server/PlayerManager;broadcast(Lnet/minecraft/text/Text;Ljava/util/function/Function;Lnet/minecraft/network/MessageType;Ljava/util/UUID;)V"
