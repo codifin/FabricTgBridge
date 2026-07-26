@@ -1,12 +1,14 @@
 package cuteneko.tgbridge
 
+import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.mojang.brigadier.builder.RequiredArgumentBuilder
 import cuteneko.tgbridge.tgbot.TgBot
 import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
-import net.fabricmc.fabric.api.message.v1.ServerMessageEvents // Импортируем событие сообщений
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
@@ -20,6 +22,7 @@ import java.io.FileNotFoundException
 
 class Bridge : ModInitializer {
     
+    // Используем SupervisorJob, чтобы ошибка в одной корутине не роняла весь Scope
     private val bridgeJob = SupervisorJob()
     private val bridgeScope = CoroutineScope(Dispatchers.Default + bridgeJob)
 
@@ -29,7 +32,7 @@ class Bridge : ModInitializer {
         CONFIG = ConfigLoader.load()
         ConfigLoader.save(CONFIG)
 
-        if (CONFIG.botToken == "YOUR BOT TOKEN HERE") {
+        if (CONFIG.botToken == "YOUR BOT TOKEN HERE" || CONFIG.botToken.isBlank()) {
             LOGGER.warn("Telegram-мост: Пожалуйста, заполните токен бота в конфигурационном файле!")
             return
         }
@@ -42,9 +45,16 @@ class Bridge : ModInitializer {
         }
 
         BOT = TgBot(LOGGER)
-        bridgeScope.launch { BOT.startPolling() }
+        bridgeScope.launch { 
+            try {
+                BOT.startPolling() 
+            } catch (e: Exception) {
+                LOGGER.error("Ошибка при запуске поллинга бота: ", e)
+            }
+        }
 
         CommandRegistrationCallback.EVENT.register { dispatcher, _ ->
+            // Команда: /tgbridge_reload
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_reload")
                 .requires { it.hasPermissionLevel(4) }
                 .executes {
@@ -64,13 +74,31 @@ class Bridge : ModInitializer {
                             it.source.sendFeedback(LiteralText("Telegram-мост успешно перезапущен!").formatted(Formatting.GREEN), false)
                         } catch (e: Exception) {
                             it.source.sendFeedback(LiteralText("Произошла ошибка при перезапуске моста!").formatted(Formatting.RED), false)
-                            e.message?.let { msg -> it.source.sendFeedback(LiteralText(msg), false) }
+                            LOGGER.error("Ошибка перезапуска моста: ", e)
                         } finally {
                             RELOADING = false
                         }
                     }
                     0
                 })
+
+            // Команда: /tgbridge_test <сообщение>
+            dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_test")
+                .requires { it.hasPermissionLevel(4) } // Только для админов/консоли
+                .then(RequiredArgumentBuilder.argument<ServerCommandSource, String>("message", StringArgumentType.greedyString())
+                    .executes { context ->
+                        val message = StringArgumentType.getString(context, "message")
+                        val senderName = context.source.name
+
+                        context.source.sendFeedback(LiteralText("Тестовое сообщение отправлено в Telegram от имени $senderName!").formatted(Formatting.GREEN), false)
+                        
+                        // Запускаем сообщение ровно по тому же пути, по которому идут сообщения чата
+                        onPlayerChat(senderName, message)
+                        
+                        1
+                    }
+                )
+            )
         }
 
         // ==========================================
@@ -78,9 +106,12 @@ class Bridge : ModInitializer {
         // ==========================================
         ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
             val username = sender.name.string
-            val textContent = message.content.string
+            // На 1.18.2 могут быть особенности с типом message, берем строку текста напрямую
+            val textContent = message.string 
             
-            // Вызываем твой готовый метод
+            // Логируем, чтобы убедиться, что событие вообще срабатывает (потом можно убрать)
+            LOGGER.info("Перехват чата: [$username] $textContent")
+            
             onPlayerChat(username, textContent)
         }
 
@@ -88,7 +119,11 @@ class Bridge : ModInitializer {
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    try { BOT.sendMessageToTelegram("<b>$username</b> зашёл на server.") } catch(_: Exception) {}
+                    try { 
+                        BOT.sendMessageToTelegram("<b>$username</b> зашёл на сервер.") 
+                    } catch(e: Exception) {
+                        LOGGER.error("Ошибка отправки сообщения о входе в ТГ: ", e)
+                    }
                 }
             }
         }
@@ -97,7 +132,11 @@ class Bridge : ModInitializer {
             if (CONFIG.sendGameMessage) {
                 val username = handler.player.name.string
                 bridgeScope.launch {
-                    try { BOT.sendMessageToTelegram("<b>$username</b> покинул сервер.") } catch(_: Exception) {}
+                    try { 
+                        BOT.sendMessageToTelegram("<b>$username</b> покинул сервер.") 
+                    } catch(e: Exception) {
+                        LOGGER.error("Ошибка отправки сообщения о выходе в ТГ: ", e)
+                    }
                 }
             }
         }
@@ -139,10 +178,13 @@ class Bridge : ModInitializer {
         fun onPlayerChat(username: String, message: String) {
             if (!::BOT.isInitialized) return
             if (CONFIG.sendChatMessage) {
-                BOT.getBotScope().launch {
+                // Используем общий пул моста, а не пул бота
+                INSTANCE.bridgeScope.launch {
                     try {
                         BOT.sendMessageToTelegram(message, username)
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        LOGGER.error("Не удалось отправить сообщение из игры в Telegram: ", e)
+                    }
                 }
             }
         }
@@ -155,7 +197,7 @@ class Bridge : ModInitializer {
                 SERVER.playerManager.playerList.forEach {
                     it.sendSystemMessage(text, Util.NIL_UUID)
                 }
-                SERVER.sendSystemMessage(text, Util.NIL_UUID)
+                SERVER.sendSystemMessage(text, Util.NIL_UUID) // отправляем также в консоль сервера
             }
         }
     }

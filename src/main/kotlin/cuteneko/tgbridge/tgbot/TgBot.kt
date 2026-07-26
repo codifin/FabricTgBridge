@@ -47,9 +47,16 @@ class TgBot(val LOGGER: Logger) {
     private var currentOffset: Long = -1
     private var me: User? = null
 
-    val meow = arrayOf("мяу~", "мур!", "фрр...") // Русифицировано мяуканье :)
+    val meow = arrayOf("мяу~", "мур!", "фрр...")
 
     fun getBotScope(): CoroutineScope = botScope
+
+    // Экранирование HTML для Telegram API, чтобы символы вроде <3 не крашили отправку
+    private fun String.escapeHtml(): String {
+        return this.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+    }
 
     private suspend fun initialize() {
         try {
@@ -108,7 +115,7 @@ class TgBot(val LOGGER: Logger) {
                     is CancellationException -> break@loop
                     else -> {
                         Bridge.LOGGER.error("Ошибка получения обновлений (поллинг): ${e.message}")
-                        delay(2000)
+                        delay(2000) // Защита от спама в консоль при падении сети
                         continue@loop
                     }
                 }
@@ -122,7 +129,7 @@ class TgBot(val LOGGER: Logger) {
             try {
                 handleUpdate(it)
             } catch (e: Exception) {
-                e.printStackTrace()
+                LOGGER.error("Ошибка при обработке обновления Telegram", e)
             }
         }
     }
@@ -151,7 +158,6 @@ class TgBot(val LOGGER: Logger) {
         val msg = ctx.message!!
         if (config.chatId != msg.chat.id) return
         
-        // Русифицировано дефолтное имя
         val authorName = msg.from?.rawUserMention() ?: msg.senderChat?.title ?: "Пользователь Telegram"
         
         val formattedPattern = config.minecraftFormat.replace("%1\$s", authorName)
@@ -172,14 +178,23 @@ class TgBot(val LOGGER: Logger) {
                 Bridge.sendMessage(text)
             }
         } catch (e: UninitializedPropertyAccessException) {
+            LOGGER.error("Сервер еще не инициализирован для отправки сообщения.")
         }
     }
 
     suspend fun sendMessageToTelegram(text: String, username: String? = null, reply: Long? = null) {
         withContext(Dispatchers.IO) {
-            val formatted = username?.let {
-                String.format(config.telegramFormat, username, text)
-            } ?: text
+            // Если username не null, значит это сообщение из чата — экранируем его от HTML-ошибок.
+            // Если null, значит это системное сообщение (вход/выход), в нем уже есть готовые <b> теги.
+            val formatted = if (username != null) {
+                if (config.useHtmlFormat) {
+                    String.format(config.telegramFormat, username.escapeHtml(), text.escapeHtml())
+                } else {
+                    String.format(config.telegramFormat, username, text)
+                }
+            } else {
+                text
+            }
             
             try {
                 if (config.useHtmlFormat) {
@@ -189,8 +204,8 @@ class TgBot(val LOGGER: Logger) {
                 }
             } catch (e: HttpException) {
                 e.response()?.errorBody()?.string()?.let {
-                    LOGGER.error("Ошибка Telegram API: $it")
-                    LOGGER.error("Текст, который не удалось отправить: $formatted")
+                    LOGGER.error("Ошибка Telegram API (HttpException): $it")
+                    LOGGER.error("Текст, который вызвал ошибку: $formatted")
                 }
             } catch (e: Exception) {
                 LOGGER.error("Сетевая ошибка при отправке в Telegram: ${e.message}")
@@ -201,14 +216,14 @@ class TgBot(val LOGGER: Logger) {
     private suspend fun sendHtmlMessage(formatted: String, reply: Long?) {
         val response = api.sendMessage(config.chatId, formatted, reply)
         if (!response.ok) {
-            LOGGER.error(response.description ?: "Неизвестная ошибка API")
+            LOGGER.error("Ошибка отправки HTML: " + (response.description ?: "Неизвестная ошибка API"))
         }
     }
 
     private suspend fun sendPlainMessage(formatted: String, reply: Long?) {
         val response = api.sendMessageWithoutParse(config.chatId, formatted, reply)
         if (!response.ok) {
-            LOGGER.error(response.description ?: "Неизвестная ошибка API")
+            LOGGER.error("Ошибка отправки Plain: " + (response.description ?: "Неизвестная ошибка API"))
         }
     }
 }
