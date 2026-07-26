@@ -8,7 +8,6 @@ import kotlinx.coroutines.*
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
-import net.fabricmc.fabric.api.message.v1.ServerMessageEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.command.ServerCommandSource
@@ -22,7 +21,6 @@ import java.io.FileNotFoundException
 
 class Bridge : ModInitializer {
     
-    // Используем SupervisorJob, чтобы ошибка в одной корутине не роняла весь Scope
     private val bridgeJob = SupervisorJob()
     private val bridgeScope = CoroutineScope(Dispatchers.Default + bridgeJob)
 
@@ -84,7 +82,7 @@ class Bridge : ModInitializer {
 
             // Команда: /tgbridge_test <сообщение>
             dispatcher.register(LiteralArgumentBuilder.literal<ServerCommandSource?>("tgbridge_test")
-                .requires { it.hasPermissionLevel(4) } // Только для админов/консоли
+                .requires { it.hasPermissionLevel(4) }
                 .then(RequiredArgumentBuilder.argument<ServerCommandSource, String>("message", StringArgumentType.greedyString())
                     .executes { context ->
                         val message = StringArgumentType.getString(context, "message")
@@ -92,27 +90,12 @@ class Bridge : ModInitializer {
 
                         context.source.sendFeedback(LiteralText("Тестовое сообщение отправлено в Telegram от имени $senderName!").formatted(Formatting.GREEN), false)
                         
-                        // Запускаем сообщение ровно по тому же пути, по которому идут сообщения чата
                         onPlayerChat(senderName, message)
                         
                         1
                     }
                 )
             )
-        }
-
-        // ==========================================
-        // РЕГИСТРАЦИЯ СОБЫТИЯ ЧАТА ИЗ FABRIC API
-        // ==========================================
-        ServerMessageEvents.CHAT_MESSAGE.register { message, sender, _ ->
-            val username = sender.name.string
-            // На 1.18.2 могут быть особенности с типом message, берем строку текста напрямую
-            val textContent = message.string 
-            
-            // Логируем, чтобы убедиться, что событие вообще срабатывает (потом можно убрать)
-            LOGGER.info("Перехват чата: [$username] $textContent")
-            
-            onPlayerChat(username, textContent)
         }
 
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
@@ -178,7 +161,6 @@ class Bridge : ModInitializer {
         fun onPlayerChat(username: String, message: String) {
             if (!::BOT.isInitialized) return
             if (CONFIG.sendChatMessage) {
-                // Используем общий пул моста, а не пул бота
                 INSTANCE.bridgeScope.launch {
                     try {
                         BOT.sendMessageToTelegram(message, username)
@@ -197,7 +179,7 @@ class Bridge : ModInitializer {
                 SERVER.playerManager.playerList.forEach {
                     it.sendSystemMessage(text, Util.NIL_UUID)
                 }
-                SERVER.sendSystemMessage(text, Util.NIL_UUID) // отправляем также в консоль сервера
+                SERVER.sendSystemMessage(text, Util.NIL_UUID)
             }
         }
     }
