@@ -12,15 +12,17 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.UUID;
+import java.util.function.Function;
 
 @Mixin(PlayerManager.class)
 public abstract class PlayerManagerMixin {
 
     @Inject(
-        method = "broadcast(Lnet/minecraft/text/Text;Lnet/minecraft/network/MessageType;Ljava/util/UUID;)V",
+        method = "broadcast(Lnet/minecraft/text/Text;Ljava/util/function/Function;Lnet/minecraft/network/MessageType;Ljava/util/UUID;)V",
         at = @At("HEAD")
     )
-    private void tgbridge$onBroadcast(Text message, MessageType type, UUID sender, CallbackInfo ci) {
+    private void tgbridge$onBroadcast(Text message, Function<ServerPlayerEntity, Text> factory,
+                                      MessageType type, UUID sender, CallbackInfo ci) {
         if (type != MessageType.CHAT) return;
         if (!(message instanceof TranslatableText t) || !"chat.type.text".equals(t.getKey())) return;
 
